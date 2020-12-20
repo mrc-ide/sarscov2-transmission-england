@@ -1,0 +1,50 @@
+script: script.R
+
+parameters:
+    short_run:
+      default: false
+    chains:
+      default: 3
+    region:
+      default: london
+    tune:
+      default: false
+    kernel_scaling:
+      default: 1
+
+artefacts:
+  - data:
+      description: pMCMC results for beta and date
+      filenames:
+        - outputs/pmcmc_results.rds
+        - outputs/sample_pmcmc_results.rds
+        - outputs/parameters_covariance.csv
+        - outputs/Rt.rds
+        - outputs/data.rds
+  - data:
+      description: inputs for combined task
+      filenames:
+        - parameters_info.csv
+        - parameters_prior.csv
+
+packages:
+  - sircovid
+  - viridisLite
+  - mcstate
+  - coda
+  - dplyr
+
+sources:
+  - fit.R
+  - support.R
+  - util.R
+
+resources:
+  - parameters_info.csv
+  - parameters_proposal.csv
+  - support_progression.csv
+  - support_severity.csv
+  - data_serology.csv
+  - parameters_prior.csv
+  - data_rtm.csv
+  - support_age_profile.csv

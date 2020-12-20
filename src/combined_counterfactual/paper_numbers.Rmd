@@ -1,0 +1,133 @@
+---
+title: "Counterfactuals for paper"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+mean_ci <- function(x) c("mean" = mean(x), quantile(x, c(0.025, 0.975)))
+
+extract_deaths <- function(x, what, from = "2020-01-01", to, traj = "deaths") {
+  trajectories <- x[[what]]$trajectories
+  s_date <- sircovid::sircovid_date(c(from, to))
+  ret <- trajectories$state[traj, , trajectories$date == s_date[2]] -
+    trajectories$state[traj, , trajectories$date == s_date[1]]
+  mean_ci(ret)
+}
+
+extract_obs_deaths <- function(x, to, from = "2020-01-01") {
+  s_date <- sircovid::sircovid_date(c(from, to))
+  i_date <- (x$full$date_end > s_date[1]) & (x$full$date_end <= s_date[2])
+  deaths <- x$full$deaths_hosp + x$full$deaths_comm
+  sum(deaths[i_date], na.rm = TRUE)
+}
+
+vnapply <- function(X, FUN, ...) {
+  vapply(X, FUN, numeric(1), ...)
+}
+
+vn3apply <- function(X, FUN, ...) {
+  vapply(X, FUN, numeric(3), ...)
+}
+```
+
+Cumulative deaths England
+
+```{r}
+date_end_ld1 <- "2020-08-01"
+```
+
+Deaths by region from before RTM time series starts
+
+```{r}
+early_deaths <- c("london" = 40,
+                  "east_of_england" = 9,
+                  "midlands" = 21,
+                  "north_east_and_yorkshire" = 4,
+                  "north_west" = 11,
+                  "south_east" = 16,
+                  "south_west" = 4)
+```
+
+Cumulative deaths in first wave, in England
+
+```{r}
+obs_deaths <- extract_obs_deaths(agg_data$england, to = date_end_ld1) +
+  sum(early_deaths)
+print(obs_deaths)
+```
+
+Lockdown 1 starting late deaths
+
+```{r}
+extract_deaths(agg_counterfactuals, "lockdown_later", to = date_end_ld1)
+```
+
+Lockdown 1 starting early deaths
+
+```{r}
+extract_deaths(agg_counterfactuals, "lockdown_earlier", to = date_end_ld1)
+```
+
+Impact of lockdown 1 starting later, by region
+
+```{r}
+tmp <- vn3apply(counterfactuals_by_region, extract_deaths,
+                "lockdown_later", to = date_end_ld1)
+
+deaths_region <- vnapply(data, extract_obs_deaths, to = date_end_ld1)
+deaths_region <- deaths_region + early_deaths[names(deaths_region)]
+t(tmp) / deaths_region - 1
+vn3apply(counterfactuals_by_region, extract_deaths, "fitted",
+         to = date_end_ld1)
+```
+
+Observed deaths in the second wave, used to compare against counterfactuals
+
+```{r}
+date_end <- "2020-12-01"
+deaths_obs <- extract_obs_deaths(agg_data$england,
+                                 from = date_end_ld1, to = date_end)
+```
+
+Relax earlier
+
+```{r}
+extract_deaths(agg_counterfactuals, "open_earlier",
+               from = date_end_ld1, to = date_end) - deaths_obs
+```
+
+Relax later
+
+```{r}
+extract_deaths(agg_counterfactuals, "open_later",
+               from = date_end_ld1, to = date_end) - deaths_obs
+```
+
+# Carehome contact change % reduction in carehome deaths
+
+```{r}
+v <- sprintf("chr_contact_reduce_%s", c(0.25, 0.5, 0.75, 1))
+ccr <- vn3apply(v, extract_deaths, x = agg_counterfactuals,
+                from = "2020-01-01", to = date_end_ld1, traj = "deaths_comm")
+impact_ccr <- t(ccr) / sum(agg_data$england$full$deaths_comm, na.rm = TRUE) - 1
+round(impact_ccr * 100, 1)
+```
+
+# Carehome contact change increase - no impact here
+
+```{r}
+v <- sprintf("chr_contact_increase_%s", c(0.25, 0.5, 0.75, 1))
+cci <- vn3apply(v, extract_deaths, x = agg_counterfactuals,
+                from = "2020-01-01", to = date_end_ld1, traj = "deaths_comm")
+t(cci) - sum(agg_data$england$full$deaths_comm, na.rm = TRUE)
+```
+
+# Discussion
+
+How much more effective did contact reduction need to be?
+
+```{r}
+apply(impact_ccr, 2, function(x)
+  approx(x, c(0.25, 0.5, 0.75, 1), xout = -0.5)$y)
+```

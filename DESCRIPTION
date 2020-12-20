@@ -1,0 +1,20 @@
+Imports:
+  Hmisc,
+  coda,
+  dplyr,
+  mcstate,
+  orderly,
+  raster,
+  rgdal,
+  rgeos,
+  rmarkdown,
+  sircovid,
+  sp,
+  viridis,
+  viridisLight,
+  writexl
+Remotes:
+  mrc-ide/dust@v0.5.6,
+  mrc-ide/mcstate@v0.2.15,
+  mrc-ide/sircovid@v0.7.8,
+  vimc/orderly

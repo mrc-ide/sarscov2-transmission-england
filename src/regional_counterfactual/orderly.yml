@@ -1,0 +1,29 @@
+parameters:
+  short_run:
+    default: false
+  region:
+    default: "london"
+  n_par:
+    default: 1000
+
+script: script.R
+
+sources:
+  - support.R
+
+artefacts:
+  - data:
+      description: Results of counterfactual analysis
+      filenames:
+        - outputs/results.rds
+        - inputs/data.rds
+
+packages:
+  - sircovid
+
+depends:
+ - regional_fit:
+     id: latest(parameter:region == region && parameter:short_run == short_run)
+     use:
+        inputs/sample_pmcmc.rds: outputs/sample_pmcmc_results.rds
+        inputs/data.rds: outputs/data.rds

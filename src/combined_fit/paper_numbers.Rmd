@@ -1,0 +1,452 @@
+---
+title: "Numbers for the paper"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+format_num <- function(x, d) {
+  x <- round(x / d, 1) * d
+  prettyNum(x, ",")
+}
+
+mean_ci <- function(x) c(mean = mean(x), quantile(x, c(0.025, 0.975)))
+
+extract_value <- function(what, date, sample) {
+  sircovid_date <- sircovid::sircovid_date(date)
+  sample$trajectories$state[what, , sample$trajectories$date == sircovid_date]
+}
+
+vnapply <- function(X, FUN, ...) {
+  vapply(X, FUN, numeric(1), ...)
+}
+
+paper_date <- "2020-12-02"
+start_data <- "2020-03-16"
+end_first_wave <- "2020-08-01"
+ld_dates <- list( ld1 = "2020-03-25", ld2 = "2020-11-05")
+
+pop <- sapply(names(agg_samples),
+              function(x) sum(sircovid:::sircovid_population(x)))
+```
+
+# Abstract
+
+% of infected admitted to hospital
+```{r}
+infected <- extract_value("infections", paper_date, agg_samples$england)
+admitted <- extract_value("admitted", paper_date, agg_samples$england) +
+  extract_value("new", paper_date, agg_samples$england)
+
+round(mean_ci(admitted / infected) * 100, 2)
+```
+
+% of infected that died
+
+```{r}
+died <- extract_value("deaths", paper_date, agg_samples$england)
+round(mean_ci(died / infected) * 100, 2)
+```
+
+% pop infected to 1st August
+
+```{r}
+infected_firstwave <- extract_value("infections", end_first_wave,
+                                    agg_samples$england)
+
+round(mean_ci(infected_firstwave / pop["england"]) * 100, 2)
+```
+
+% infected in second wave
+
+```{r}
+infected_secondwave <- infected - infected_firstwave
+
+round(mean_ci(infected_secondwave / pop["england"]) * 100, 2)
+```
+
+Total % infected (to 2nd December 2020)
+
+```{r}
+round(mean_ci(infected / pop["england"]) * 100, 2)
+```
+
+
+# Introduction
+
+Deaths by region from before RTM time series starts
+
+```{r}
+early_deaths <- c("london" = 40,
+                  "east_of_england" = 9,
+                  "midlands" = 21,
+                  "north_east_and_yorkshire" = 4,
+                  "north_west" = 11,
+                  "south_east" = 16,
+                  "south_west" = 4)
+```
+
+
+```{r}
+tot_deaths <- sum(agg_data$england$full$deaths, na.rm = TRUE) +
+                sum(early_deaths)
+tot_deaths
+```
+```{r}
+tot_deaths / sum(sircovid:::sircovid_population("england")) * 1e5
+```
+
+# Results
+
+## 1. Epidemic trajectory
+
+R0 in England
+
+```{r}
+extract_Rt_est <- function(date, Rt_output, what) {
+  ret <- Rt_output[[what]][Rt_output$date == sircovid::sircovid_date(date)]
+  round(mean_ci(ret), 2)
+}
+
+extract_Rt_est(start_data, agg_Rt_outputs$england, "eff_Rt_all")
+```
+
+Regional epidemic start dates
+
+```{r}
+start_dates <- sapply(samples[-8], function(x) {
+  start_date <- mean_ci(x$pars[, "start_date"])
+  as.character(sircovid::sircovid_date_as_date(start_date))
+  })
+
+t(start_dates)
+```
+
+
+```{r}
+start_date <- lapply(agg_samples, function(x) x$pars[, "start_date"])
+
+mean_ci(start_date$south_east - start_date$london)
+```
+
+
+Death toll per 100,000 during the first wave (up to 1st August 2020)
+
+```{r echo = FALSE}
+first_wave_deaths <- sapply(agg_samples, function(x) {
+  mean_ci(extract_value("deaths", end_first_wave, x))
+})
+
+round(t(first_wave_deaths) / pop * 1e5, 1)
+```
+
+
+Proportion of London population in care homes compared to national average
+
+```{r}
+i_eng <- which(names(agg_samples) == "england")
+chr_pop <- sapply(agg_samples[-i_eng], function(x) {
+  ret <- x$predict$transform(x$pars[1, ])
+  ret$carehome_residents
+})
+
+chr_pop <- c(chr_pop, "england" = sum(chr_pop))
+
+round(chr_pop / pop * 1e5, 0)
+```
+
+Proportion of first wave deaths that occurred in care homes (England)
+
+```{r}
+prop_chr_deaths <- extract_value("deaths_comm", end_first_wave,
+                                 agg_samples$england) /
+  extract_value("deaths", end_first_wave, agg_samples$england)
+
+paste0(round(mean_ci(prop_chr_deaths), 3) * 100, "%")
+
+sum(agg_data$england$full$deaths_comm, na.rm = TRUE) /
+  sum(agg_data$england$full$deaths, na.rm = TRUE)
+```
+
+
+Timing of first-wave peak in care homes relative to hospital deaths
+
+```{r}
+calc_peak <- function(sample, what, end_date) {
+  i_date <- sample$trajectories$date <= sircovid::sircovid_date(end_date)
+  daily_deaths <- sample$trajectories$state[what, , i_date]
+  dates <- sample$trajectories$date[i_date]
+  dates[apply(daily_deaths, 1, which.max)]
+}
+
+peak_diff <- function(sample, end_date) {
+  chw <- calc_peak(sample, "deaths_comm_inc", end_first_wave)
+  hosp <- calc_peak(sample, "deaths_hosp_inc", end_first_wave)
+  mean_ci(chw - hosp)
+}
+
+t(sapply(agg_samples, peak_diff, end_first_wave))
+```
+
+Risk of infection in care homes
+
+```{r}
+calc_infections_by_age <- function(sample, S_i) {
+  S <- sample$trajectories$state[S_i, , ]
+  infections <- S[, 1] - t(S)
+  infections_inc <- t(apply(infections, 2, diff))
+  infections_inc[, 1] <- 0
+  risk <- infections_inc / S[, -ncol(S)]
+  list(infections_inc = cbind(0, infections_inc),
+       risk = risk)
+}
+
+calc_S_gen <- function(sample) {
+  state <- sample$trajectories$state
+  S_names <- grep("^S_", rownames(state), value = TRUE)
+  S_names <- setdiff(S_names, "S_CHR")
+  apply(state[S_names, , ], c(2, 3), sum)
+}
+
+calc_infections_nonCHR <- function(sample) {
+  infections_inc_CHR <- calc_infections_by_age(sample, "S_CHR")$infections_inc
+  infections_inc <- sample$trajectories$state["infections_inc", , ]
+  infections_inc - infections_inc_CHR
+}
+
+calc_risk_inf_gen <- function(sample) {
+  infections_inc_gen <- calc_infections_nonCHR(sample)
+  S_gen <- calc_S_gen(sample)
+  infections_inc_gen[, -1] / S_gen[, -ncol(S_gen)]
+}
+
+peak_risk_date <- function(sample, end_date) {
+  i_dates <- sample$trajectories$date <= sircovid::sircovid_date(end_date)
+  sample$trajectories$date <- sample$trajectories$date[i_dates]
+  sample$trajectories$state <- sample$trajectories$state[, , i_dates]
+
+  gen <- calc_risk_inf_gen(sample)
+  chr <- calc_infections_by_age(sample, "S_CHR")$risk
+
+  extract_peak <- function(x) {
+    ret <- mean_ci(sample$trajectories$date[apply(x, 1, which.max)])
+    ret <- sircovid::sircovid_date_as_date(ret)
+    as.character(ret)
+  }
+
+  gen_peak <- extract_peak(gen)
+  names(gen_peak) <- sprintf("gen_%s", names(gen_peak))
+  chr_peak <- extract_peak(chr)
+  names(chr_peak) <- sprintf("chr_%s", names(chr_peak))
+  c(gen_peak, chr_peak)
+}
+
+peak_risk <- sapply(agg_samples, peak_risk_date, end_first_wave)
+t(peak_risk)
+```
+
+$R_t ^ {eff}$ in first lockdown compared to second
+
+```{r}
+lapply(ld_dates, extract_Rt_est, agg_Rt_outputs$england, "eff_Rt_general")
+```
+
+$R_t$ in second lockdown
+
+```{r}
+lapply(ld_dates, extract_Rt_est, agg_Rt_outputs$england, "Rt_general")
+```
+
+## 2. Severity and hopitalisation
+
+Regional infection fatality ratio (IFR) / hospitalisation ratio (IHR) in first wave
+
+```{r}
+extract_severity <- function(ifr, what, end_date) {
+  mean_ci(ifr[[what]][ifr$date == sircovid::sircovid_date(end_date), ])
+}
+
+regional_ifr <- t(sapply(ifr_t, extract_severity, "IFR_AR_all", start_data))
+
+regional_ihr <- t(sapply(ifr_t, extract_severity, "IHR_AR_all", start_data))
+
+list(ifr = round(regional_ifr, 2),
+     ihr = round(regional_ihr, 2))
+```
+
+How much did hospital mortality improve?
+
+```{r}
+reduction_in_severity <- function(ifr, date1, date2) {
+  ret <- 1 - (ifr$IFR_AR_all[ifr$date == date2, ] /
+    ifr$IFR_AR_all[ifr$date == date1, ])
+  mean_ci(ret)
+}
+
+round(t(sapply(ifr_t, reduction_in_severity, end_first_wave, paper_date)) * 100, 1)
+```
+
+First wave IFR
+
+```{r}
+round(extract_severity(ifr_t$england, "IFR_AR_all", start_data), 2)
+```
+
+Second wave IFR
+
+```{r}
+round(extract_severity(ifr_t$england, "IFR_AR_all", paper_date), 2)
+```
+
+IFR in care home residents (CHR)
+
+```{r}
+round(t(sapply(ifr_t, extract_severity, "IFR_CHR", end_first_wave)), 1)
+```
+
+IFR in oldest age group (80+)
+
+```{r}
+round(t(sapply(ifr_t, extract_severity, "IFR_80", end_first_wave)), 1)
+```
+
+IHR in CHR
+
+```{r}
+round(t(sapply(ifr_t, extract_severity, "IHR_CHR", end_first_wave)), 1)
+```
+
+IHR in oldest age group (80+)
+
+```{r}
+round(t(sapply(ifr_t, extract_severity, "IHR_80", end_first_wave)), 1)
+```
+
+# 3. Epidemic size
+
+Total proportion ever infected by region
+
+```{r}
+total_infs <- sapply(agg_samples, function(x) {
+  mean_ci(extract_value("infections", paper_date, x))
+})
+
+round(t(total_infs) / pop * 100, 1)
+```
+
+
+Serology parameters:
+Time to seropositivity (days)
+
+```{r}
+pars <- samples$london$predict$transform(samples$london$pars[1, ])
+(1 / pars$gamma_R_pre_1 + 1/ pars$gamma_R_pre_2) / 2
+```
+
+Probability of seroconversion, sensitivity / specificity of serological tests
+
+```{r}
+pars$p_seroconversion[1]
+pars$sero_sensitivity
+pars$sero_specificity
+```
+
+Daily deaths peak
+
+```{r}
+max(agg_data$england$full$deaths, na.rm = TRUE)
+```
+
+See Counterfactuals task for the remaining Results numbers
+
+# Discussion
+
+Regional IFR at end of epidemic
+
+```{r}
+round(t(sapply(ifr_t, extract_severity, what = "IFR_AR_all", paper_date)), 2)
+```
+
+Regional IHR at end of epidemic
+
+```{r}
+round(t(sapply(ifr_t, extract_severity, what = "IHR_AR_all", paper_date)), 2)
+```
+
+# Supplement
+
+Table S6: Fitted model parameters
+
+Regional epidemic start date
+
+```{r}
+extract_params1 <- function(sample, what, digits = 2) {
+  tmp <- round(apply(sample$pars[, what, drop = FALSE], 2, mean_ci), digits)
+  tmp <- as.data.frame(t(tmp))
+  sprintf("%s (%s, %s)", tmp$mean, tmp$`2.5%`, tmp$`97.5%`)
+}
+
+extract_params <- function(samples, what, digits) {
+  tmp <- sapply(samples[region_names], extract_params1, what = what,
+                digits = digits)
+  if (!is.null(nrow(tmp))) {
+    rownames(tmp) <- what
+  }
+  tmp
+}
+
+
+sapply(samples[region_names], function(x) {
+  tmp <- sircovid::sircovid_date_as_date(mean_ci(x$pars[, "start_date"]))
+  as.character(tmp)
+})
+```
+
+Regional betas and eps
+
+```{r}
+extract_params(samples, c(sprintf("beta%s", seq_len(12)), "eps"), 2)
+```
+
+Care home parameters
+
+```{r}
+extract_params(samples, what = sprintf("C_%s", 1:2), digits =7)
+```
+
+Transistion probabilities
+
+```{r}
+v <- c("hosp_sympt", "death_comm", "ICU_hosp", "death_hosp_D", "death_ICU",
+       "death_stepdown")
+extract_params(samples, what = sprintf("p_%s", v), digits = 2)
+```
+
+mus
+
+```{r}
+extract_params(samples, what = sprintf("mu_%s", c("death_hosp", "ICU_hosp")),
+               digits = 2)
+```
+
+The rest
+
+```{r}
+extract_params(samples, what = c("prop_noncovid_sympt", "rho_pillar2_tests"),
+               digits = 4)
+```
+
+Table S9: England IFR / IHR by age / CHR
+
+```{r}
+format_ifr <- function(what) {
+  groups <- c(seq(0, 80, 5), "CHR")
+  tmp <- t(sapply(sprintf("%s_%s", what, groups), extract_severity,
+           ifr = ifr_t$england, end_date = paper_date))
+  tmp <- round(tmp, 3)
+  paste0( tmp[, "mean"], "% (", tmp[, "2.5%"], "%, ", tmp[, "97.5%"], "%)")
+}
+
+cbind(IHR = format_ifr("IHR"), IFR = format_ifr("IFR"))
+```

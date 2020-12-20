@@ -1,0 +1,72 @@
+parameters:
+  short_run:
+    default: false
+
+script: script.R
+
+resources:
+  - regions.csv
+  - paper_numbers.Rmd
+  
+sources:
+  - plot.R
+  - plot_util.R
+  - util.R
+
+artefacts:
+  - staticgraph:
+      description: Projections for a single scenario
+      filenames:
+        - figs/paper_fig.png
+        - figs/supp_paper_fig.png
+  - data:
+      description: results of counterfactual analysis
+      filenames:
+        - outputs/counterfactuals.rds
+        - outputs/paper_numbers.html
+
+packages:
+  - sircovid
+
+depends:
+ - regional_counterfactual:      
+     id: latest(parameter:region == "london" && parameter:short_run == short_run)
+     use:
+        inputs/results_london.rds: outputs/results.rds
+        inputs/data_london.rds: inputs/data.rds
+        
+ - regional_counterfactual:
+     id: latest(parameter:region == "east_of_england" && parameter:short_run == short_run)
+     use:
+        inputs/results_east_of_england.rds: outputs/results.rds
+        inputs/data_east_of_england.rds: inputs/data.rds
+
+ - regional_counterfactual:
+     id: latest(parameter:region == "midlands" && parameter:short_run == short_run)
+     use:
+        inputs/results_midlands.rds: outputs/results.rds
+        inputs/data_midlands.rds: inputs/data.rds
+
+ - regional_counterfactual:
+     id: latest(parameter:region == "north_east_and_yorkshire" && parameter:short_run == short_run)
+     use:
+        inputs/results_north_east_and_yorkshire.rds: outputs/results.rds
+        inputs/data_north_east_and_yorkshire.rds: inputs/data.rds
+
+ - regional_counterfactual:
+     id: latest(parameter:region == "north_west" && parameter:short_run == short_run)
+     use:
+        inputs/results_north_west.rds: outputs/results.rds
+        inputs/data_north_west.rds: inputs/data.rds
+
+ - regional_counterfactual:
+     id: latest(parameter:region == "south_east" && parameter:short_run == short_run)
+     use:
+        inputs/results_south_east.rds: outputs/results.rds
+        inputs/data_south_east.rds: inputs/data.rds
+
+ - regional_counterfactual:
+     id: latest(parameter:region == "south_west" && parameter:short_run == short_run)
+     use:
+        inputs/results_south_west.rds: outputs/results.rds
+        inputs/data_south_west.rds: inputs/data.rds

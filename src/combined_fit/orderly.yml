@@ -1,0 +1,110 @@
+script: script.R
+
+parameters:
+  short_run:
+    default: false
+
+artefacts:
+  - staticgraph:
+      description: regional fitting plots and projections for comparison
+      filenames:
+        - figs/data_fits_regional.png
+        - figs/forest_plot.png
+        - figs/incidence_per_1000.png
+        - figs/Rt_eff_general.png
+        - figs/Rt_general.png
+        - paper_figs/fig1.png
+        - paper_figs/fig2.png
+        - paper_figs/fig4.png
+        - paper_figs/fig5.png
+        - paper_figs/supplement_pillar2_react.png
+        - outputs/paper_numbers.html
+  - data:
+      description: Output used as inputs in subsequent runs
+      filenames:
+        - new_inputs/parameters_proposal.csv
+        - new_inputs/parameters_info.csv
+
+packages:
+  - sircovid
+  - writexl
+  - viridis
+  - Hmisc
+  - rgdal
+  - rgeos
+  - raster
+  - sp
+  - rmarkdown
+
+sources:
+  - plots.R
+  - plots_forest.R
+  - plots_util.R
+  - support.R
+  - utils.R
+
+resources:
+  - regions.csv
+  - paper_numbers.Rmd
+
+  - age_profile.csv
+  - NHS_region_map.rds
+depends:
+ - regional_fit:
+     id: latest(parameter:region == "london" && parameter:short_run == short_run)
+     use:
+        regional_results/parameters_covariance_london.csv: outputs/parameters_covariance.csv
+        regional_results/pmcmc_london.rds: outputs/pmcmc_results.rds
+        regional_results/sample_pmcmc_london.rds: outputs/sample_pmcmc_results.rds
+        regional_results/data_london.rds: outputs/data.rds
+        regional_results/Rt_london.rds: outputs/Rt.rds
+        pmcmc_inputs.csv: parameters_info.csv
+        parameters_prior.csv: parameters_prior.csv
+ - regional_fit:
+     id: latest(parameter:region == "east_of_england" && parameter:short_run == short_run)
+     use:
+        regional_results/parameters_covariance_east_of_england.csv: outputs/parameters_covariance.csv
+        regional_results/pmcmc_east_of_england.rds: outputs/pmcmc_results.rds
+        regional_results/sample_pmcmc_east_of_england.rds: outputs/sample_pmcmc_results.rds
+        regional_results/data_east_of_england.rds: outputs/data.rds
+        regional_results/Rt_east_of_england.rds: outputs/Rt.rds
+ - regional_fit:
+     id: latest(parameter:region == "midlands" && parameter:short_run == short_run)
+     use:
+        regional_results/parameters_covariance_midlands.csv: outputs/parameters_covariance.csv
+        regional_results/pmcmc_midlands.rds: outputs/pmcmc_results.rds
+        regional_results/sample_pmcmc_midlands.rds: outputs/sample_pmcmc_results.rds
+        regional_results/data_midlands.rds: outputs/data.rds
+        regional_results/Rt_midlands.rds: outputs/Rt.rds
+ - regional_fit:
+     id: latest(parameter:region == "north_east_and_yorkshire" && parameter:short_run == short_run)
+     use:
+        regional_results/parameters_covariance_north_east_and_yorkshire.csv: outputs/parameters_covariance.csv
+        regional_results/pmcmc_north_east_and_yorkshire.rds: outputs/pmcmc_results.rds
+        regional_results/sample_pmcmc_north_east_and_yorkshire.rds: outputs/sample_pmcmc_results.rds
+        regional_results/data_north_east_and_yorkshire.rds: outputs/data.rds
+        regional_results/Rt_north_east_and_yorkshire.rds: outputs/Rt.rds
+ - regional_fit:
+     id: latest(parameter:region == "north_west" && parameter:short_run == short_run)
+     use:
+        regional_results/parameters_covariance_north_west.csv: outputs/parameters_covariance.csv
+        regional_results/pmcmc_north_west.rds: outputs/pmcmc_results.rds
+        regional_results/sample_pmcmc_north_west.rds: outputs/sample_pmcmc_results.rds
+        regional_results/data_north_west.rds: outputs/data.rds
+        regional_results/Rt_north_west.rds: outputs/Rt.rds
+ - regional_fit:
+     id: latest(parameter:region == "south_east" && parameter:short_run == short_run)
+     use:
+        regional_results/parameters_covariance_south_east.csv: outputs/parameters_covariance.csv
+        regional_results/pmcmc_south_east.rds: outputs/pmcmc_results.rds
+        regional_results/sample_pmcmc_south_east.rds: outputs/sample_pmcmc_results.rds
+        regional_results/data_south_east.rds: outputs/data.rds
+        regional_results/Rt_south_east.rds: outputs/Rt.rds
+ - regional_fit:
+     id: latest(parameter:region == "south_west" && parameter:short_run == short_run)
+     use:
+        regional_results/parameters_covariance_south_west.csv: outputs/parameters_covariance.csv
+        regional_results/pmcmc_south_west.rds: outputs/pmcmc_results.rds
+        regional_results/sample_pmcmc_south_west.rds: outputs/sample_pmcmc_results.rds
+        regional_results/data_south_west.rds: outputs/data.rds
+        regional_results/Rt_south_west.rds: outputs/Rt.rds
