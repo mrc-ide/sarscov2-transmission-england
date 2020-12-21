@@ -3,11 +3,6 @@ transform_beta_date <- function(sample, i, days_earlier, i_betas) {
   ret <- sample$predict$transform(p)
 
   beta_date <- sircovid::sircovid_date(sample$info$beta_date)
-  beta_date <- sircovid::sircovid_date(
-    c("2020-03-16", "2020-03-23", "2020-03-25",
-      "2020-05-11", "2020-06-15", "2020-07-04",
-      "2020-08-03", "2020-09-01", "2020-09-14",
-      "2020-10-14", "2020-11-05"))
   beta_date[i_betas] <- beta_date[i_betas] - days_earlier
 
   beta_value <- p[sprintf("beta%s", seq_along(beta_date))]

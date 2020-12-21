@@ -10,8 +10,8 @@ counterfactuals_by_region <- Map(readRDS, path)
 names(counterfactuals_by_region) <- names(data) <- regions$key
 counterfactuals <- switch_levels(counterfactuals_by_region)
 
-agg_counterfactuals <- lapply(counterfactuals,  function(x)
-  list(trajectories = sircovid::combine_trajectories(x)))
+agg_counterfactuals <- lapply(counterfactuals, function(x)
+  list(trajectories = sircovid::combine_trajectories(x, rank = FALSE)))
 
 agg_data <- data
 agg_data$england <- list(full = aggregate_data(data))
@@ -47,6 +47,8 @@ Map(plot_lockdown_counterfactual,
     title = unname(counterfactual_lockdown),
     col = col,
     days_earlier = c(7, -7, -14, 14),
+    policy_date = as.Date(c("2020-03-23", "2020-03-23",
+                            "2020-05-11", "2020-05-11")),
     label_y = list(c(1, 0.6), c(0.6, 1), c(0.6, 1), c(0.95, 0.6)),
     label_pos = list(c(4, 3), c(2, 4), c(2, 4), c(4, 3)),
     MoreArgs = list(
@@ -72,28 +74,32 @@ Map(plot_lockdown_counterfactual, sample = counterfactuals$fitted,
     counterfactual = counterfactuals$lockdown_earlier,
     legend = FALSE,
     data = data, title = sprintf("A%d) %s", seq_len(n_region), regions$name),
-    MoreArgs = list(days_earlier = 7, death_col = grey(0.7),
-                    col = col, ysf = 1e2, label_pos = c(4, 3)))
+    MoreArgs = list(days_earlier = 7, policy_date = as.Date("2020-03-23"),
+                    death_col = grey(0.7), col = col, ysf = 1e2,
+                    label_pos = c(4, 3)))
 
 Map(plot_lockdown_counterfactual, sample = counterfactuals$fitted,
     counterfactual = counterfactuals$lockdown_later,
     legend = FALSE,
     data = data, title = sprintf("B%d) %s", seq_len(n_region), regions$name),
-    MoreArgs = list(days_earlier = -7, death_col = grey(0.7),
-                    col = col, ysf = 1e2, label_pos = c(3, 4)))
+    MoreArgs = list(days_earlier = -7, policy_date = as.Date("2020-03-23"),
+                    death_col = grey(0.7), col = col, ysf = 1e2,
+                    label_pos = c(3, 4)))
 
 Map(plot_lockdown_counterfactual, sample = counterfactuals$fitted,
     counterfactual = counterfactuals$open_earlier,
     legend = FALSE,
     data = data, title = sprintf("C%d) %s", seq_len(n_region), regions$name),
-    MoreArgs = list(days_earlier = 14, death_col = grey(0.7),
-                    col = col, ysf = 1e2, label_pos = c(4, 3)))
+    MoreArgs = list(days_earlier = 14, policy_date = as.Date("2020-05-11"),
+                    death_col = grey(0.7), col = col, ysf = 1e2,
+                    label_pos = c(4, 3)))
 Map(plot_lockdown_counterfactual, sample = counterfactuals$fitted,
     counterfactual = counterfactuals$open_later,
     legend = FALSE,
     data = data, title = sprintf("D%d) %s", seq_len(n_region), regions$name),
-    MoreArgs = list(days_earlier = -14, death_col = grey(0.7),
-                    col = col, ysf = 1e2, label_pos = c(3, 4)))
+    MoreArgs = list(days_earlier = -14, policy_date = as.Date("2020-05-11"),
+                    death_col = grey(0.7), col = col, ysf = 1e2,
+                    label_pos = c(3, 4)))
 
 Map(plot_carehome_counterfactual, sample = counterfactuals$fitted,
     counterfactual = counterfactuals$chr_contact_reduce_0.5,

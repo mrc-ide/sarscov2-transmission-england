@@ -156,3 +156,60 @@ aggregate_data <- function(data, region_names, type = "full") {
   ret[-seq_len(nrow(ret) - 5), ] <- NA
   data.frame(ret, x[, date_names])
 }
+
+extract_admissions_by_age <- function(sample) {
+  trajectories <- sample$trajectories$state
+  cum_admissions <- trajectories[grep("^cum_admit", rownames(trajectories)), , ]
+
+  total_admissions <- cum_admissions[, , dim(cum_admissions)[3]]
+  prop_admissions <- t(total_admissions) / colSums(total_admissions) * 100
+
+  admissions <- apply(cum_admissions, 1:2, diff)
+  mean_admissions <- apply(admissions, 1:2, mean)
+
+  list(prop_total_admissions = prop_admissions,
+       mean_prop_total_admissions = colMeans(prop_admissions),
+       mean_admissions_t = mean_admissions)
+}
+
+prepare_model_admissions <- function(model, dashboard){
+  model <- mean_admissions
+
+  age <- c("0 to 5", "6 to 17", "18 to 64", "65 to 84", "85+")
+
+  ## Model outputs only for people in the general population
+  model <- data.frame(model[1:17, ] / 100)
+
+  ## Aggregate into 5 age brackets comparable with Dashboard data
+  row1 <- model[1, ]
+  row2 <- colSums(model[2:4, ])
+  row3 <- colSums(model[5:13, ])
+  row4 <- colSums(model[14:16, ])
+  row5 <- model[17, ]
+  model <- rbind(row1, row2, row3, row4, row5)
+  model$age <- factor(age, levels = age)
+
+  model <- data.frame(melt(model, id.vars = "age"))
+  colnames(model) <- c("age", "region", "admissions_prop")
+  model$source <- as.factor("Model")
+
+  ## Prepare the dashboard data
+  dashboard <- dashboard %>% dplyr::select(age, region, admissions_prop)
+  dashboard$source <- as.factor("PHE Dashboard")
+
+  out <- rbind(model, dashboard)
+}
+
+prepare_model_data <- function(admissions, admissions_data) {
+  model <- admissions$england$mean_prop_total_admissions
+  model <- data.frame(model[1:17] / 100)
+  age <- c("0 to 4", "5 to 9", "10 to 14", "15 to 19", "20 to 24", "25 to 29",
+           "30 to 34", "35 to 39", "40 to 44", "45 to 49", "50 to 54",
+           "55 to 59", "60 to 64", "65 to 69", "70 to 74", "75 to 79", "80+")
+  model$age <- age
+  model$age <- factor(model$age, levels = age)
+
+  model <- melt(model)
+  model$variable <- "Model"
+  out <- rbind(model, admissions_data)
+}

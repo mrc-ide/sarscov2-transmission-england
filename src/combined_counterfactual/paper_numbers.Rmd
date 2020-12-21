@@ -77,7 +77,7 @@ tmp <- vn3apply(counterfactuals_by_region, extract_deaths,
 
 deaths_region <- vnapply(data, extract_obs_deaths, to = date_end_ld1)
 deaths_region <- deaths_region + early_deaths[names(deaths_region)]
-t(tmp) / deaths_region - 1
+round((t(tmp) / deaths_region - 1) * 100, 1)
 vn3apply(counterfactuals_by_region, extract_deaths, "fitted",
          to = date_end_ld1)
 ```

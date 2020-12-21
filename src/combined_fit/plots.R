@@ -306,10 +306,7 @@ plot_annotated_rt <- function(samples, Rt_general, plot_num = "",
                               col, legend = FALSE, regions) {
   x <- sircovid::sircovid_date_as_date(samples$london$trajectories$date)
   y <- sapply(Rt_general, rowMeans)
-  policy_dates <- as.Date(c("2020-03-16", "2020-03-23", "2020-03-25",
-                            "2020-05-11", "2020-06-15", "2020-07-04",
-                            "2020-08-03", "2020-09-01", "2020-09-14",
-                            "2020-10-14", "2020-11-05"))
+  policy_dates <- as.Date(samples$london$info$beta_date)
   ## Start from blank plot with appropriate axes
   ylim <- c(0, 4.5)
   xlim <- as.Date(c("2020-03-01", "2020-12-01"))
@@ -349,6 +346,7 @@ plot_annotated_rt <- function(samples, Rt_general, plot_num = "",
                   "Sep 01:\nSchools\nreturn",
                   "Sep 14:\nRule of 6",
                   "Oct 14:\nTiers\nintroduced",
+                  "Oct 31:\nSecond\nlockdown\nannounced",
                   "Nov 05:\nSecond\nlockdown"),
        pos = c(2, 4, 4, 2, 2, 2, 3, 2, 3, 3, 4), cex = 1, font = 3)
 
@@ -535,7 +533,7 @@ plot_paper_fig4 <- function(samples, ifr_t, regions, region_names,
     colMedians(extract_by_age(ifr_t[[x]], "IFR")))
 
   plot(0, 0, type = "n", las = 1,
-       xlim = c(0, at_chr), ylim = c(0, 50), xlab = "Age", ylab = "(%)",
+       xlim = c(0, at_chr), ylim = c(0, 60), xlab = "Age", ylab = "(%)",
        xaxt = "n")
   segments(x0 = 0, x1 = at_chr, y0 = seq(0, 50, 10), col = grey(0.9))
   axis(1, seq(0, 80, 20), labels = c(seq(0, 60, 20), "80+"))
@@ -567,7 +565,7 @@ plot_paper_fig4 <- function(samples, ifr_t, regions, region_names,
   q_ihr_by_age <- apply(ihr_by_age, 2, quantile, qs)
 
   plot(0, 0, type = "n", las = 1,
-       xlim = c(0, at_chr), ylim = c(0, 50), xlab = "Age", ylab = "(%)",
+       xlim = c(0, at_chr), ylim = c(0, 60), xlab = "Age", ylab = "(%)",
        xaxt = "n")
   segments(x0 = 0, x1 = at_chr, y0 = seq(0, 50, 10), col = grey(0.9))
 

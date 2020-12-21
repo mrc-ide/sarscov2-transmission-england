@@ -127,7 +127,7 @@ t(start_dates)
 ```{r}
 start_date <- lapply(agg_samples, function(x) x$pars[, "start_date"])
 
-mean_ci(start_date$south_east - start_date$london)
+mean_ci(start_date$midlands - start_date$london)
 ```
 
 
@@ -165,8 +165,9 @@ prop_chr_deaths <- extract_value("deaths_comm", end_first_wave,
 
 paste0(round(mean_ci(prop_chr_deaths), 3) * 100, "%")
 
-sum(agg_data$england$full$deaths_comm, na.rm = TRUE) /
-  sum(agg_data$england$full$deaths, na.rm = TRUE)
+i <- as.Date(agg_data$england$full$date_string) <= as.Date(end_first_wave)
+sum(agg_data$england$full$deaths_comm[i], na.rm = TRUE) /
+  sum(agg_data$england$full$deaths[i], na.rm = TRUE)
 ```
 
 
@@ -279,18 +280,20 @@ How much did hospital mortality improve?
 
 ```{r}
 reduction_in_severity <- function(ifr, date1, date2) {
-  ret <- 1 - (ifr$IFR_AR_all[ifr$date == date2, ] /
-    ifr$IFR_AR_all[ifr$date == date1, ])
+  ret <- 1 - (ifr$IFR_AR_all[ifr$date == sircovid::sircovid_date(date2), ] /
+    ifr$IFR_AR_all[ifr$date == sircovid::sircovid_date(date1), ])
   mean_ci(ret)
 }
 
-round(t(sapply(ifr_t, reduction_in_severity, end_first_wave, paper_date)) * 100, 1)
+round(t(sapply(ifr_t, reduction_in_severity, start_data, end_first_wave)) * 100, 1)
 ```
 
 First wave IFR
 
 ```{r}
 round(extract_severity(ifr_t$england, "IFR_AR_all", start_data), 2)
+
+round(extract_severity(ifr_t$england, "IFR_AR_all", end_first_wave), 2)
 ```
 
 Second wave IFR
@@ -328,13 +331,36 @@ round(t(sapply(ifr_t, extract_severity, "IHR_80", end_first_wave)), 1)
 Total proportion ever infected by region
 
 ```{r}
-total_infs <- sapply(agg_samples, function(x) {
-  mean_ci(extract_value("infections", paper_date, x))
-})
+total_infs <- sapply(agg_samples, function(x)
+  mean_ci(extract_value("infections", paper_date, x)))
 
 round(t(total_infs) / pop * 100, 1)
 ```
+Population ever infected in CHR by region
 
+```{r}
+total_infs_chr <- chr_pop + t(sapply(agg_samples, function(x)
+  mean_ci(-extract_value("S_CHR", paper_date, x))))
+
+round(total_infs_chr / chr_pop * 100, 1)
+```
+
+Population over 80 ever infected by region
+
+```{r}
+i_eng <- which(names(agg_samples) == "england")
+pop_80 <- sapply(agg_samples[-i_eng], function(x) {
+  ret <- x$predict$transform(x$pars[1, ])
+  ret$N_tot[ret$n_age_groups]
+})
+
+pop_80 <- c(pop_80, "england" = sum(pop_80))
+
+total_infs_80 <- pop_80 + t(sapply(agg_samples, function(x)
+  mean_ci(-extract_value("S_80", paper_date, x))))
+
+round(total_infs_80 / pop_80 * 100, 1)
+```
 
 Serology parameters:
 Time to seropositivity (days)

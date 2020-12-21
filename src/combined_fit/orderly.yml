@@ -13,6 +13,7 @@ artefacts:
         - figs/incidence_per_1000.png
         - figs/Rt_eff_general.png
         - figs/Rt_general.png
+        - figs/dashboard_model.png
         - paper_figs/fig1.png
         - paper_figs/fig2.png
         - paper_figs/fig4.png
@@ -35,6 +36,9 @@ packages:
   - raster
   - sp
   - rmarkdown
+  - reshape2
+  - dplyr
+  - ggsci
 
 sources:
   - plots.R
@@ -46,6 +50,8 @@ sources:
 resources:
   - regions.csv
   - paper_numbers.Rmd
+  - admissions_age_data.csv
+  - dashboard_region.csv
 
   - age_profile.csv
   - NHS_region_map.rds

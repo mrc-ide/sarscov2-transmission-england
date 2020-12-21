@@ -1,6 +1,9 @@
 regions <- read.csv("regions.csv", stringsAsFactors = FALSE)
 rownames(regions) <- regions$key
 
+dashboard <- read.csv("dashboard_region.csv")
+admissions_data <- read.csv("admissions_age_data.csv")
+
 path <- sprintf("regional_results/sample_pmcmc_%s.rds", regions$key)
 samples <- Map(readRDS, path)
 names(samples) <- regions$key
@@ -121,6 +124,35 @@ mapply(plot_Rt,
        title = agg_regions$name,
        MoreArgs = list(date = date, col = paper_cols["nowcast"],
                        ylab = expression(R[0](t))))
+dev.off()
+
+## Admissions by age
+admissions <- lapply(agg_samples, extract_admissions_by_age)
+mean_admissions <- sapply(admissions, "[[", "mean_prop_total_admissions")
+
+plot_admissions <- prepare_model_admissions(admissions, dashboard)
+region_name_map <- setNames(c(regions$key, "england"),
+                            c(regions$name, "England"))
+plot_admissions$region <-
+  names(region_name_map)[match(plot_admissions$region, region_name_map)]
+p1 <- ggplot(plot_admissions,
+             aes(x = age, y = admissions_prop, fill = region)) +
+  geom_bar(position = "dodge", stat = "identity", aes(fill = source)) +
+  theme_bw() + ggtitle("A) Admissions by age and region") +
+  xlab("") + theme(legend.title = element_blank()) +
+  ggsci::scale_fill_lancet() +
+  ylab("Proportion") +
+  facet_wrap(~region) +
+  theme(axis.text.x = element_text(angle = 90))
+
+plot_admissions_2 <- prepare_model_data(admissions, admissions_data)
+p2 <- ggplot(plot_admissions_2, aes(x = age, y = value, colour = variable)) +
+  geom_point() + xlab("") + ylab("Proportion") + theme_bw() + ylim(c(0, 0.5)) +
+  labs(title = "B) All admissions by age (England)", colour = "Source") +
+  ggsci::scale_color_lancet() + theme(axis.text.x = element_text(angle = 90))
+png("figs/dashboard_model.png", units = "in", width = 10, height = 5,
+    res = 300)
+gridExtra::grid.arrange(p1, p2, nrow = 1)
 dev.off()
 
 ## Figures for the manuscript itself

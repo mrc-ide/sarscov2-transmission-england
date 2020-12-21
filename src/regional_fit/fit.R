@@ -89,7 +89,7 @@ carehomes_spim_data_rtm <- function(date, data, region, full_data = FALSE) {
   drop <- c("pillar2_positives", "pillar2_negatives",
             "pillar2_positives_over25", "pillar2_negatives_over25")
   data[which(data$date < "2020-06-01"), drop] <- NA_integer_
-  
+
   ## Remove implausible value for MV beds occupancy in east_of_england
   ## on 2020-09-11
   if (region == "east_of_england") {
