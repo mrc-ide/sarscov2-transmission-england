@@ -2,7 +2,7 @@
 
 This is an [orderly](https://www.vaccineimpact.org/orderly/) repository which contains the analysis to our preprint
 
-> The first two waves of the SARS-Cov-2 epidemic in England: key epidemiological drivers and impact of interventions, Knock, Whittles, Lees, Perez-Guzman et al.
+> The 2020 SARS-CoV-2 epidemic in England: key epidemiological drivers and impact of interventions; Knock, Whittles, Lees, Perez-Guzman et al.
 
 Running the complete analysis will take many hours, and you may want to run `regional_fit` in parallel on separate nodes of an HPC.  The tasks are parallelised using OpenMP and will consume as many cores as you have available on each node, respecting the environment variable `MC_CORES`.  See the `regional_fit` task for more information.  On 32 core Xeons (dual 16-core 2.6 GHz), each copy of the `regional_fit` task takes about 12 hours, and this must be run 7 times, one for each region.
 
