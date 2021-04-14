@@ -15,11 +15,9 @@ extract_deaths <- function(x, what, from = "2020-01-01", to, traj = "deaths") {
   mean_ci(ret)
 }
 
-extract_obs_deaths <- function(x, to, from = "2020-01-01") {
-  s_date <- sircovid::sircovid_date(c(from, to))
-  i_date <- (x$full$date_end > s_date[1]) & (x$full$date_end <= s_date[2])
-  deaths <- x$full$deaths_hosp + x$full$deaths_comm
-  sum(deaths[i_date], na.rm = TRUE)
+extract_mean_fitted_deaths <- function(x, to, from = "2020-01-01",
+                                       traj = "deaths") {
+  round(extract_deaths(x, "fitted", from, to, traj)[["mean"]])
 }
 
 vnapply <- function(X, FUN, ...) {
@@ -37,24 +35,13 @@ Cumulative deaths England
 date_end_ld1 <- "2020-08-01"
 ```
 
-Deaths by region from before RTM time series starts
+
+Cumulative fitted deaths in first wave, in England
 
 ```{r}
-early_deaths <- c("london" = 40,
-                  "east_of_england" = 9,
-                  "midlands" = 21,
-                  "north_east_and_yorkshire" = 4,
-                  "north_west" = 11,
-                  "south_east" = 16,
-                  "south_west" = 4)
-```
-
-Cumulative deaths in first wave, in England
-
-```{r}
-obs_deaths <- extract_obs_deaths(agg_data$england, to = date_end_ld1) +
-  sum(early_deaths)
-print(obs_deaths)
+mean_fitted_deaths <- extract_mean_fitted_deaths(agg_counterfactuals,
+                                                 to = date_end_ld1)
+print(mean_fitted_deaths)
 ```
 
 Lockdown 1 starting late deaths
@@ -75,33 +62,34 @@ Impact of lockdown 1 starting later, by region
 tmp <- vn3apply(counterfactuals_by_region, extract_deaths,
                 "lockdown_later", to = date_end_ld1)
 
-deaths_region <- vnapply(data, extract_obs_deaths, to = date_end_ld1)
-deaths_region <- deaths_region + early_deaths[names(deaths_region)]
+deaths_region <- vnapply(counterfactuals_by_region,
+                         extract_mean_fitted_deaths, to = date_end_ld1)
 round((t(tmp) / deaths_region - 1) * 100, 1)
 vn3apply(counterfactuals_by_region, extract_deaths, "fitted",
          to = date_end_ld1)
 ```
 
-Observed deaths in the second wave, used to compare against counterfactuals
+Fitted deaths in the second wave, used to compare against counterfactuals
 
 ```{r}
 date_end <- "2020-12-01"
-deaths_obs <- extract_obs_deaths(agg_data$england,
-                                 from = date_end_ld1, to = date_end)
+mean_fitted_deaths <- extract_mean_fitted_deaths(agg_counterfactuals,
+                                                 from = date_end_ld1,
+                                                 to = date_end)
 ```
 
 Relax earlier
 
 ```{r}
 extract_deaths(agg_counterfactuals, "open_earlier",
-               from = date_end_ld1, to = date_end) - deaths_obs
+               from = date_end_ld1, to = date_end) - mean_fitted_deaths
 ```
 
 Relax later
 
 ```{r}
 extract_deaths(agg_counterfactuals, "open_later",
-               from = date_end_ld1, to = date_end) - deaths_obs
+               from = date_end_ld1, to = date_end) - mean_fitted_deaths
 ```
 
 # Carehome contact change % reduction in carehome deaths
@@ -109,8 +97,14 @@ extract_deaths(agg_counterfactuals, "open_later",
 ```{r}
 v <- sprintf("chr_contact_reduce_%s", c(0.25, 0.5, 0.75, 1))
 ccr <- vn3apply(v, extract_deaths, x = agg_counterfactuals,
-                from = "2020-01-01", to = date_end_ld1, traj = "deaths_comm")
-impact_ccr <- t(ccr) / sum(agg_data$england$full$deaths_comm, na.rm = TRUE) - 1
+                from = "2020-01-01", to = date_end_ld1,
+                traj = "deaths_carehomes")
+mean_fitted_carehome_deaths <-
+  extract_mean_fitted_deaths(agg_counterfactuals,
+                             from = "2020-01-01",
+                             to = date_end_ld1,
+                             traj = "deaths_carehomes")
+impact_ccr <- t(ccr) / mean_fitted_carehome_deaths - 1
 round(impact_ccr * 100, 1)
 ```
 
@@ -119,8 +113,9 @@ round(impact_ccr * 100, 1)
 ```{r}
 v <- sprintf("chr_contact_increase_%s", c(0.25, 0.5, 0.75, 1))
 cci <- vn3apply(v, extract_deaths, x = agg_counterfactuals,
-                from = "2020-01-01", to = date_end_ld1, traj = "deaths_comm")
-t(cci) - sum(agg_data$england$full$deaths_comm, na.rm = TRUE)
+                from = "2020-01-01", to = date_end_ld1,
+                traj = "deaths_carehomes")
+t(cci) - mean_fitted_carehome_deaths
 ```
 
 # Discussion

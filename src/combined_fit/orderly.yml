@@ -13,7 +13,11 @@ artefacts:
         - figs/incidence_per_1000.png
         - figs/Rt_eff_general.png
         - figs/Rt_general.png
-        - figs/dashboard_model.png
+        - figs/admissions_spline.png
+        - figs/epiestim.png
+        - figs/gt_distr.png
+        - figs/admissions_by_age.png
+        - figs/deaths_by_age.png
         - paper_figs/fig1.png
         - paper_figs/fig2.png
         - paper_figs/fig4.png
@@ -25,6 +29,7 @@ artefacts:
       filenames:
         - new_inputs/parameters_proposal.csv
         - new_inputs/parameters_info.csv
+        - outputs/mean_admissions_by_age.csv
 
 packages:
   - sircovid
@@ -64,6 +69,9 @@ depends:
         regional_results/sample_pmcmc_london.rds: outputs/sample_pmcmc_results.rds
         regional_results/data_london.rds: outputs/data.rds
         regional_results/Rt_london.rds: outputs/Rt.rds
+        regional_results/ifr_t_london.rds: outputs/ifr_t.rds
+        regional_results/deaths_london.rds: outputs/deaths_by_age.rds
+        regional_results/admissions_london.rds: outputs/admissions_by_age.rds
         pmcmc_inputs.csv: parameters_info.csv
         parameters_prior.csv: parameters_prior.csv
  - regional_fit:
@@ -74,6 +82,9 @@ depends:
         regional_results/sample_pmcmc_east_of_england.rds: outputs/sample_pmcmc_results.rds
         regional_results/data_east_of_england.rds: outputs/data.rds
         regional_results/Rt_east_of_england.rds: outputs/Rt.rds
+        regional_results/ifr_t_east_of_england.rds: outputs/ifr_t.rds
+        regional_results/deaths_east_of_england.rds: outputs/deaths_by_age.rds
+        regional_results/admissions_east_of_england.rds: outputs/admissions_by_age.rds
  - regional_fit:
      id: latest(parameter:region == "midlands" && parameter:short_run == short_run)
      use:
@@ -82,6 +93,9 @@ depends:
         regional_results/sample_pmcmc_midlands.rds: outputs/sample_pmcmc_results.rds
         regional_results/data_midlands.rds: outputs/data.rds
         regional_results/Rt_midlands.rds: outputs/Rt.rds
+        regional_results/ifr_t_midlands.rds: outputs/ifr_t.rds
+        regional_results/deaths_midlands.rds: outputs/deaths_by_age.rds
+        regional_results/admissions_midlands.rds: outputs/admissions_by_age.rds
  - regional_fit:
      id: latest(parameter:region == "north_east_and_yorkshire" && parameter:short_run == short_run)
      use:
@@ -90,6 +104,9 @@ depends:
         regional_results/sample_pmcmc_north_east_and_yorkshire.rds: outputs/sample_pmcmc_results.rds
         regional_results/data_north_east_and_yorkshire.rds: outputs/data.rds
         regional_results/Rt_north_east_and_yorkshire.rds: outputs/Rt.rds
+        regional_results/ifr_t_north_east_and_yorkshire.rds: outputs/ifr_t.rds
+        regional_results/deaths_north_east_and_yorkshire.rds: outputs/deaths_by_age.rds
+        regional_results/admissions_north_east_and_yorkshire.rds: outputs/admissions_by_age.rds
  - regional_fit:
      id: latest(parameter:region == "north_west" && parameter:short_run == short_run)
      use:
@@ -98,6 +115,9 @@ depends:
         regional_results/sample_pmcmc_north_west.rds: outputs/sample_pmcmc_results.rds
         regional_results/data_north_west.rds: outputs/data.rds
         regional_results/Rt_north_west.rds: outputs/Rt.rds
+        regional_results/ifr_t_north_west.rds: outputs/ifr_t.rds
+        regional_results/deaths_north_west.rds: outputs/deaths_by_age.rds
+        regional_results/admissions_north_west.rds: outputs/admissions_by_age.rds
  - regional_fit:
      id: latest(parameter:region == "south_east" && parameter:short_run == short_run)
      use:
@@ -106,6 +126,9 @@ depends:
         regional_results/sample_pmcmc_south_east.rds: outputs/sample_pmcmc_results.rds
         regional_results/data_south_east.rds: outputs/data.rds
         regional_results/Rt_south_east.rds: outputs/Rt.rds
+        regional_results/ifr_t_south_east.rds: outputs/ifr_t.rds
+        regional_results/deaths_south_east.rds: outputs/deaths_by_age.rds
+        regional_results/admissions_south_east.rds: outputs/admissions_by_age.rds
  - regional_fit:
      id: latest(parameter:region == "south_west" && parameter:short_run == short_run)
      use:
@@ -114,3 +137,6 @@ depends:
         regional_results/sample_pmcmc_south_west.rds: outputs/sample_pmcmc_results.rds
         regional_results/data_south_west.rds: outputs/data.rds
         regional_results/Rt_south_west.rds: outputs/Rt.rds
+        regional_results/ifr_t_south_west.rds: outputs/ifr_t.rds
+        regional_results/deaths_south_west.rds: outputs/deaths_by_age.rds
+        regional_results/admissions_south_west.rds: outputs/admissions_by_age.rds

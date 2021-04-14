@@ -9,7 +9,7 @@ prepare_trajectories <- function(sample, counterfactual) {
   nowcast[is.na(nowcast)] <- 0
   nowcasts <- list(
     deaths_inc = calc_incid(t(nowcast["deaths", , ])),
-    deaths_comm_inc = calc_incid(t(nowcast["deaths_comm", , ])),
+    deaths_carehomes_inc = calc_incid(t(nowcast["deaths_carehomes", , ])),
     infections_inc = calc_incid(t(nowcast["infections", , ])),
     icu = nowcast["icu", -1, ],
     general = nowcast["general", -1, ])
@@ -18,7 +18,8 @@ prepare_trajectories <- function(sample, counterfactual) {
   counterfactual[is.na(counterfactual)] <- 0
   counterfactuals <- list(
     deaths_inc = calc_incid(t(counterfactual["deaths", , ])),
-    deaths_comm_inc = calc_incid(t(counterfactual["deaths_comm", , ])),
+    deaths_carehomes_inc = calc_incid(
+      t(counterfactual["deaths_carehomes", , ])),
     infections_inc = calc_incid(t(counterfactual["infections", , ])),
     icu = counterfactual["icu", -1, ],
     general = counterfactual["general", -1, ])
@@ -64,7 +65,8 @@ plot_lockdown_counterfactual <- function(sample, counterfactual, title,
   add_trajectories(dx[-1], qs$counterfactual$deaths_inc[, -1], col, alpha)
   add_trajectories(dx[-1], qs$nowcast$deaths_inc[, -1], death_col, alpha)
 
-  points(dx, data$full$deaths_hosp + data$full$deaths_comm, pch = 23,
+  points(dx, data$full$deaths_hosp + data$full$deaths_carehomes +
+           data$full$deaths_comm, pch = 23,
          bg = death_col, col = dcol, cex = 0.5, lwd = 0.6)
 
   y1 <- label_y * ymax_deaths
@@ -100,10 +102,10 @@ plot_carehome_counterfactual <- function(sample, counterfactual, title, data,
                                          dcol = "black", alpha = 0.3,
                                          legend = FALSE) {
   dx <- as.Date(data$full$date_string)
-  dy <- data$full$deaths_comm
+  dy <- data$full$deaths_carehomes
   qs <- prepare_trajectories(counterfactual, sample = sample)
 
-  ymax_deaths <- max(qs$counterfactual$deaths_comm_inc)
+  ymax_deaths <- max(qs$counterfactual$deaths_carehomes_inc)
   ymax_deaths <- ceiling(max(ymax_deaths, dy, na.rm = TRUE) / 50) * 50
 
   xlim <- c(as.Date("2020-03-01"), as.Date("2020-12-01"))
@@ -113,8 +115,10 @@ plot_carehome_counterfactual <- function(sample, counterfactual, title, data,
        yaxp = c(0, ymax_deaths, 2), xlab = "",
        ylab = "Daily care home deaths")
 
-  add_trajectories(dx[-1], qs$counterfactual$deaths_comm_inc[, -1], col, alpha)
-  add_trajectories(dx[-1], qs$nowcast$deaths_comm_inc[, -1], death_col, alpha)
+  add_trajectories(dx[-1], qs$counterfactual$deaths_carehomes_inc[, -1],
+                   col, alpha)
+  add_trajectories(dx[-1], qs$nowcast$deaths_carehomes_inc[, -1],
+                   death_col, alpha)
 
   points(dx, dy, pch = 23, bg = death_col, col = dcol, cex = 0.5, lwd = 0.6)
 

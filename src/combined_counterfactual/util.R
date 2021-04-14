@@ -23,7 +23,8 @@ aggregate_data <- function(data, region_names, type = "full") {
   d <- lapply(d, function(x) x[seq_len(dim_t), data_names])
 
   ret <- Reduce("+", d)
-  ret$deaths <- pmax(ret$deaths, ret$deaths_hosp + ret$deaths_comm,
+  ret$deaths <- pmax(ret$deaths,
+                     ret$deaths_hosp + ret$deaths_comm + ret$deaths_carehomes,
                      na.rm = TRUE)
   data.frame(ret, x[, date_names])
 }

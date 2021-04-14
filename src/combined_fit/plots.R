@@ -16,20 +16,22 @@ plot_trajectories <- function(what,
                               xlim = as.Date(c("2020-02-01", "2020-12-01")),
                               alpha = 0.3) {
 
-  trajnames <- c(deaths = "deaths_inc", deaths_comm = "deaths_comm_inc",
-                 deaths_hosp = "deaths_hosp_inc", icu = "icu", hosp = "hosp",
-                 general = "general", new = "new_inc",
-                 admitted = "admitted_inc", new_admitted = "new_admitted_inc")
+  trajnames <- c(deaths = "deaths_inc", deaths_hosp = "deaths_hosp_inc",
+                 deaths_carehomes = "deaths_carehomes_inc",
+                 deaths_comm = "deaths_comm_inc", icu = "icu", hosp = "hosp",
+                 general = "general", diagnoses = "diagnoses_inc",
+                 admitted = "admitted_inc", all_admission = "all_admission_inc")
 
   labs <- c(deaths = "Daily deaths",
-            deaths_comm = "Daily care home deaths",
+            deaths_carehomes = "Daily care home deaths",
+            deaths_comm = "Daily community deaths",
             deaths_hosp = "Daily hospital deaths",
             icu = "ICU beds",
             general = "general beds",
             hosp = "Hospital beds",
-            new = "Daily inpatient diagnoses",
+            diagnoses = "Daily inpatient diagnoses",
             admitted = "Daily admissions",
-            new_admitted = "Daily admissions (all)")
+            all_admission = "Daily admissions (all)")
 
   dates <- sample$trajectories$date
   i_date <- dates <= sircovid::sircovid_date(date)
@@ -40,8 +42,8 @@ plot_trajectories <- function(what,
   state <- sample$trajectories$state[, , i_date]
 
   ## Extract trajectory of interest
-  if (trajnames[what] == "new_admitted_inc") {
-    y <- state["new_inc", , ] + state["admitted_inc", , ]
+  if (trajnames[what] == "all_admission_inc") {
+    y <- state["diagnoses_inc", , ] + state["admitted_inc", , ]
   } else {
     y <- state[trajnames[what], , ]
   }
@@ -62,7 +64,7 @@ plot_trajectories <- function(what,
     col_data <- col_data_fitted
   }
 
-  ylim <- c(0, max(dy, y, na.rm = TRUE))
+  ylim <- c(0, max(dy, qs, na.rm = TRUE))
   plot(xlim[1], 0, type = "n",
        xlim = xlim,
        ylim = ylim,
@@ -193,9 +195,10 @@ plot_carehome_vs_hosp_deaths <- function(samples, data, regions, col, ymax,
   ## Plot legend at the end
   legend <- c(TRUE, rep(FALSE, length(samples) - 1))
   plot_surtitle <- legend
+  yaxt <- c("s", rep("n", 2), "s", rep("n", 3))
 
   Map(plot_carehome_vs_hosp_deaths1, samples, data, main, ymax, legend,
-      plot_surtitle,
+      plot_surtitle, yaxt = yaxt,
       MoreArgs = list(col = col, surtitle = surtitle, ylab = ylab))
 }
 
@@ -247,7 +250,8 @@ plot_carehome_vs_hosp_deaths1 <- function(sample, data, col, main = "",
                                           surtitle = "", title_col = "black",
                                           max_date = as.Date("2020-12-01"),
                                           alpha = 0.3,
-                                          ylab = "Daily COVID-19 deaths") {
+                                          ylab = "Daily COVID-19 deaths",
+                                          yaxt = "s") {
   dx <- as.Date(data$fitted$date_string)
 
   extract_qs <- function(trajectories, what) {
@@ -259,8 +263,10 @@ plot_carehome_vs_hosp_deaths1 <- function(sample, data, col, main = "",
     apply(res,  MARGIN = 1, FUN = quantile, ps, na.rm = TRUE)
   }
 
-  qs_death_comm <- extract_qs(sample$trajectories, what = "deaths_comm_inc")
+  qs_death_carehomes <- extract_qs(sample$trajectories,
+                                   what = "deaths_carehomes_inc")
   qs_death_hosp <- extract_qs(sample$trajectories, what = "deaths_hosp_inc")
+  qs_death_comm <- extract_qs(sample$trajectories, what = "deaths_comm_inc")
 
   add_trajectories <- function(qs, col) {
     cols <- add_alpha(rep(col, 2), alpha)
@@ -276,17 +282,26 @@ plot_carehome_vs_hosp_deaths1 <- function(sample, data, col, main = "",
        xlim = xlim,
        ylim = ylim,
        las = 1,
+       xaxt = "n",
+       yaxt = yaxt,
        yaxp = c(0, ymax, 2),
        xlab = "", ylab = ylab)
-  add_trajectories(qs = qs_death_comm, col = col["comm"])
+
+  xaxis <- seq.Date(xlim[1], xlim[2], by = "3 months")
+  axis.Date(1, at = xaxis)
+  add_trajectories(qs = qs_death_carehomes, col = col["carehomes"])
   add_trajectories(qs = qs_death_hosp, col = col["hosp"])
+  add_trajectories(qs = qs_death_comm, col = col["comm"])
+
   points(dx, data$fitted[, "deaths_hosp"], pch = 23, bg = col["hosp"],
          cex = 0.5, lwd = 0.6)
-  points(dx, data$fitted[, "deaths_comm"], pch = 23, bg = col["comm"],
+  points(dx, data$fitted[, "deaths_carehomes"], pch = 23, bg = col["carehomes"],
+         cex = 0.5, lwd = 0.6)
+  points(dx, data$full[, "deaths_comm"], pch = 23, bg = col["comm"],
          cex = 0.5, lwd = 0.6)
 
   title(main = main, adj = 0.07, font.main = 3, cex.main = 0.95,
-        col.main = title_col, line = -0.5)
+        col.main = title_col, line = -0.3)
 
   if (plot_surtitle) {
     title(main = surtitle, adj = 0, font.main = 1, xpd = NA,
@@ -294,9 +309,9 @@ plot_carehome_vs_hosp_deaths1 <- function(sample, data, col, main = "",
   }
   if (legend) {
     legend("topright", inset = c(0.1, 0.1),
-           y.intersp = 1.5,
-           legend = c("Hospital", "Care home"), text.font = 3,
-           fill = col[c("hosp", "comm")],
+           y.intersp = 1.3,
+           legend = c("Hospital", "Care home", "Community"), text.font = 3,
+           fill = col[c("hosp", "carehomes", "comm")],
            bty = "n", cex = 1)
   }
 }
@@ -323,7 +338,7 @@ plot_annotated_rt <- function(samples, Rt_general, plot_num = "",
   axis(1, axis_dates, format(axis_dates, "%b"))
 
   ## Add policy date lines
-  y_label <- c(3.9, 4, 2.2, 1.5, 2.3, 3.6, 2.3, 3.4, 4, 2.5, 2)
+  y_label <- c(3.9, 4, 2.2, 1.5, 2.3, 3.6, 2.3, 3.4, 4, 2.5, 3.9, 2)
   segments(policy_dates, y0 = -0.1, y1 = y_label, lty = 3)
 
   ## Plot effective Rt over time
@@ -348,7 +363,7 @@ plot_annotated_rt <- function(samples, Rt_general, plot_num = "",
                   "Oct 14:\nTiers\nintroduced",
                   "Oct 31:\nSecond\nlockdown\nannounced",
                   "Nov 05:\nSecond\nlockdown"),
-       pos = c(2, 4, 4, 2, 2, 2, 3, 2, 3, 3, 4), cex = 1, font = 3)
+       pos = c(2, 4, 4, 2, 2, 2, 3, 2, 3, 3, 2, 4), cex = 1, font = 3)
 
   ## Add legend underneath plot
   ranked_regions <- colnames(y)[order(y[nrow(y), ], decreasing = TRUE)]
@@ -360,7 +375,7 @@ plot_annotated_rt <- function(samples, Rt_general, plot_num = "",
 
 
 plot_paper_fig2 <- function(agg_samples, agg_data, regions, region_names) {
-  par(mar = c(3, 4, 3, 3), mgp = c(1.7, 0.7, 0))
+  par(mar = c(3, 4, 3, 1), mgp = c(1.7, 0.7, 0))
   layout(matrix(c(1, 1, 1, 1,
                   2, 3, 4, 5,
                   6, 7, 8, 9), nrow = 3, byrow = TRUE),
@@ -372,17 +387,17 @@ plot_paper_fig2 <- function(agg_samples, agg_data, regions, region_names) {
   plot_carehome_vs_comm_incid1(agg_samples$england, max_date = "2020-12-01",
                                exch_col = cols[1],
                                ch_col = cols[2], alpha = 0.4,
-                               ymax = 2e5)
+                               ymax = 2.5e5)
   title("A) England daily COVID-19 infections", adj = 0, line = 1,
         font.main = 3)
 
-  legend("topleft", inset = c(0.1, 0.01), fill = cols,
+  legend("topright", inset = c(0.1, 0.01), fill = cols,
          legend = c("Community", "Care home residents"),
          bty = "n", text.font = 3, y.intersp = 1.5)
   regions <- regions[region_names, ]
 
   ## Plot B - H
-  par(mar = c(2, 3, 1, 0))
+  par(mar = c(2, 3, 1, 0), mgp = c(1.9, 0.7, 0))
   mapply(FUN = plot_pillar2,
          sample = agg_samples[region_names],
          data = agg_data[region_names],
@@ -390,7 +405,7 @@ plot_paper_fig2 <- function(agg_samples, agg_data, regions, region_names) {
                          LETTERS[seq_along(region_names) + 1L],
                          regions$name),
          MoreArgs = list(xlim = as.Date(c("2020-06-01", "2020-12-01")),
-                         ylim = c(0, 25), col = paper_seq_palette3(3)[2],
+                         ylim = c(0, 30), col = paper_seq_palette3(3)[2],
                          col_data = grey(0.2), ylab = "Pillar-2 positive (%)"))
 }
 
@@ -426,7 +441,7 @@ plot_carehome_vs_comm_incid1 <- function(sample, main,
     lines(x, qs["50.0%", ], col = col, lty = 1, lwd = 1.5, lend = 1)
   }
 
-  xlim <- c(as.Date("2020-03-15"), max_date)
+  xlim <- c(as.Date("2020-03-25"), max_date)
   if (is.null(ymax)) {
     ymax <- ceiling(max(incid_exCHR, na.rm = TRUE) / ysf_exch) * ysf_exch
   }
@@ -435,7 +450,8 @@ plot_carehome_vs_comm_incid1 <- function(sample, main,
        ylim = c(0, ymax),
        axes = FALSE,
        xlab = "", ylab = "")
-  axis.Date(1, at = seq.Date(as.Date("2020-03-01"), xlim[2], by = "month"))
+  axis.Date(1, at = seq.Date(as.Date("2020-03-01"),
+                             as.Date("2020-12-01"), by = "month"))
   add_trajectories(qs = qs_exCHR, col = exch_col)
   yaxis <- seq(0, ymax, length.out = 3)
   axis(side = 2, at = yaxis,
@@ -449,7 +465,9 @@ plot_carehome_vs_comm_incid1 <- function(sample, main,
        axes = FALSE,
        xlab = "", ylab = "")
   yaxis <- seq(0, ymax, length.out = 3)
-  axis(side = 4, at = yaxis, col = ch_col, las = 1, lwd = 2)
+  axis(side = 4, pos = xlim[2] + 2, at = yaxis,
+       formatC(yaxis, format =  "d", big.mark = ","),
+       col = ch_col, las = 1, lwd = 2)
   add_trajectories(qs = qs_CHR, col = ch_col)
 }
 
@@ -467,10 +485,10 @@ plot_pillar2 <- function(sample, data, col, col_data, title, xlim, ylim, ylab,
 
   model_params <- sample$predict$transform(sample$pars[1, ])
 
-  prop_noncovid_sympt <- sample$pars[, "prop_noncovid_sympt"]
+  p_NC <- sample$pars[, "p_NC"]
 
   pos <- trajectories["sympt_cases_over25_inc", , ]
-  neg <- (sum(model_params$N_tot[6:19]) - pos) * prop_noncovid_sympt
+  neg <- (sum(model_params$N_tot[6:19]) - pos) * p_NC
 
   res <- (pos * model_params$pillar2_sensitivity +
             neg * (1 - model_params$pillar2_specificity)) / (pos + neg) * 100
@@ -513,10 +531,10 @@ plot_paper_fig4 <- function(samples, ifr_t, regions, region_names,
   col_ihr <- paper_seq_palette2(3)[2]
 
   ## Plot age dist
-  par(mar = c(3, 2.5, 2, 0), mgp = c(1.7, 0.7, 0), bty = "n")
+  par(mar = c(2.5, 3, 2, 0), mgp = c(2.2, 0.6, 0), bty = "n")
 
   ages <- seq(0, 80, 5)
-  at_chr <- 87
+  at_chr <- 90
   qs <- c(0.025, 0.25, 0.5, 0.75, 0.975)
 
   extract_by_age <- function(region, what) {
@@ -532,11 +550,15 @@ plot_paper_fig4 <- function(samples, ifr_t, regions, region_names,
   ifr_by_age <- sapply(region_names, function(x)
     colMedians(extract_by_age(ifr_t[[x]], "IFR")))
 
-  plot(0, 0, type = "n", las = 1,
-       xlim = c(0, at_chr), ylim = c(0, 60), xlab = "Age", ylab = "(%)",
-       xaxt = "n")
-  segments(x0 = 0, x1 = at_chr, y0 = seq(0, 50, 10), col = grey(0.9))
+  ylim <- c(0, 40)
+  xlim <- c(0, 80)
+  plot(1, 1, type = "n", las = 1,
+       xlim = xlim, ylim = ylim, xlab = "", ylab = "(%)",
+       xaxt = "n", las = 1)
+  yaxis <- seq(0, 60, 10)
+  segments(x0 = 0, x1 = max(xlim), y0 = yaxis, col = grey(0.9))
   axis(1, seq(0, 80, 20), labels = c(seq(0, 60, 20), "80+"))
+  mtext("Age", 1, 1.7, cex = 0.7)
   matlines(ages, ihr_by_age, col = region_cols[region_names], lty = 1,
            lend = 1, lwd = 1.5)
   legend("topleft", fill = region_cols, bty = "n",
@@ -545,29 +567,36 @@ plot_paper_fig4 <- function(samples, ifr_t, regions, region_names,
 
   title("A) Regional IHR by age", font.main = 1, adj = 0, line = 1)
 
-  plot(0, 0, type = "n", las = 1,
-       xlim = c(0, at_chr), ylim = c(0, 15), xlab = "Age",
+  par(mgp = c(1.5, 0.6, 0))
+
+  plot(1, 1, type = "n", las = 1,
+       xlim = xlim, ylim = c(0, 10), xlab = "",
        xaxt = "n", ylab = "(%)")
-  segments(x0 = 0, x1 = at_chr, y0 = seq(0, 50, 5), col = grey(0.9))
+  segments(x0 = 0, x1 = max(xlim), y0 = seq(0, 10, 2), col = grey(0.9))
   axis(1, seq(0, 80, 20), labels = c(seq(0, 60, 20), "80+"))
+  mtext("Age", 1, 1.7, cex = 0.7)
   matlines(ages, ifr_by_age, col = region_cols[region_names], lty = 1,
            lend = 1, lwd = 1.5)
 
 
   title("B) Regional IFR by age", font.main = 1, adj = 0, line = 1)
+  par(mar = c(2.5, 5, 2, 1), mgp = c(3.2, 0.6, 0))
+
+
+  ylim <- c(1e-6, 1)
 
   ## Plot IFR/HR by age
   ifr_by_age <- sapply(ifr_t$england[sprintf("IFR_%s", ages)],
-                       function(x) x[nrow(x), ])
+                       function(x) x[nrow(x), ]) / 100
   q_ifr_by_age <- apply(ifr_by_age, 2, quantile, qs)
   ihr_by_age <- sapply(ifr_t$england[sprintf("IHR_%s", ages)],
-                       function(x) x[nrow(x), ])
+                       function(x) x[nrow(x), ]) / 100
   q_ihr_by_age <- apply(ihr_by_age, 2, quantile, qs)
-
-  plot(0, 0, type = "n", las = 1,
-       xlim = c(0, at_chr), ylim = c(0, 60), xlab = "Age", ylab = "(%)",
-       xaxt = "n")
-  segments(x0 = 0, x1 = at_chr, y0 = seq(0, 50, 10), col = grey(0.9))
+  yaxis <- 10 ^ (-6:0)
+  plot(1, 1, type = "n", las = 1,
+       xlim = c(0, at_chr), ylim = ylim, xlab = "", ylab = "Proportion",
+       axes = FALSE, log = "y")
+    segments(x0 = 0, x1 = at_chr, y0 = yaxis, col = grey(0.9))
 
   CI_bands(y = ages, quantiles = q_ifr_by_age, leg = FALSE, horiz = FALSE,
            cols = paper_seq_palette(4)[-4])
@@ -576,16 +605,23 @@ plot_paper_fig4 <- function(samples, ifr_t, regions, region_names,
            cols = paper_seq_palette2(4)[-4])
   lines(ages, q_ihr_by_age["50%", ], col = col_ihr, lend = 1)
 
-  plot_CI_bar(tail(ifr_t$england$IFR_CHR, 1), at = at_chr, horiz = FALSE,
+  plot_CI_bar(tail(ifr_t$england$IFR_CHR / 100, 1),
+              at = at_chr - 1.5, horiz = FALSE,
               col = col_ifr, pt_col = col_ifr)
-  plot_CI_bar(tail(ifr_t$england$IHR_CHR, 1), at = at_chr, horiz = FALSE,
+  plot_CI_bar(tail(ifr_t$england$IHR_CHR / 100, 1),
+              at = at_chr + 1.5, horiz = FALSE,
               col = col_ihr, pt_col = col_ihr)
   axis(1, seq(0, 80, 10), labels = c(seq(0, 70, 10), "80+"))
-  axis(1, at_chr, labels = "CHR")
+  axis(1, at_chr, labels = "Care\nhome\nresidents", line = 1, tick = FALSE)
+  options(scipen = 10)
+  axis(2, at = yaxis, labels = prettyNum(yaxis), las = 1)
+  mtext("Age", 1, 1.7, cex = 0.7)
+
   legend("topleft", inset = c(0.01, 0.02),
          legend = c("Infection hospitalisation ratio (IHR)",
                     "Infection fatality ratio (IFR)"),
-         fill = c(col_ihr, col_ifr), y.intersp = 1.5, text.font = 3, bty = "n")
+         fill = c(col_ihr, col_ifr), y.intersp = 1.5, text.font = 3,
+         box.lty = 0, bty = "n")
   title("C) England severity by age and in care home residents",
         font.main = 1, adj = 0, line = 1)
 
@@ -600,8 +636,8 @@ plot_paper_fig4 <- function(samples, ifr_t, regions, region_names,
   title(main = "D) Regional IHR", line = 0,  font.main = 1, adj = 0)
 
   ## Plot IFR_t
-  par(mar = c(2.5, 3, 2, 1), mgp = c(1.7, 0.7, 0), bty = "n")
-  plot_ifr_t(ifr_t$england, ifr_name = "IFR_AR_all", ylim = c(0, 2.5),
+  par(mar = c(2.5, 3, 2, 1), mgp = c(2, 0.7, 0), bty = "n")
+  plot_ifr_t(ifr_t$england, ifr_name = "IFR_AR_all", ylim = c(0, 2),
              forecast_until = "2020-12-01", col = col_ifr,
              include_forecast = FALSE, ylab = "(%)")
 
@@ -663,18 +699,19 @@ plot_ifr_t <- function(sample_ifr_t, ifr_name, ylim = c(0, 2.5), title = "",
   qs <- apply(ifr_t,  MARGIN = 1, FUN = quantile, ps, na.rm = TRUE)
 
   if (!add) {
-    par(mgp = c(1.7, 0.5, 0), bty = "n")
-    xlim <- c(x[1], as.Date(forecast_until))
+
+    xlim <- as.Date(c("2020-03-01", forecast_until))
     plot(xlim[1], 0, type = "n",
          xlim = xlim,
          ylim = ylim,
          main = toupper(title),
          font.main = 1,
+         las = 1,
          xlab = "", ylab = ylab,
          xaxt = "n")
     segments(x0 = xlim[1], x1 = xlim[2], y0 = seq(0, 4, 0.5), col = grey(0.9))
-    axis.Date(1, at = seq(as.Date("2020-04-01"), as.Date(forecast_until),
-                          by = "2 month"), format = "%b")
+    axis.Date(1, at = seq(as.Date("2020-03-01"), as.Date(forecast_until),
+                          by = "1 month"), format = "%b")
   }
   cols <- add_alpha(rep(col, 2), alpha)
 
@@ -721,8 +758,8 @@ plot_cum_inf_ch <- function(samples, data, date = NULL,
   mapply(plot_CI_bar, res = cum_inf_chr, at = at, col = col_ch,
          width = 0.2, cex = 1.7, lwd = 3)
   at <- max(xaxt) * c(0.15, 0.6)
-  mtext(side = 3, text = c("80+", "CHR"), line = -0.5, font = 3, cex = 0.7,
-        at = at)
+  mtext(side = 3, text = c("80+", "Care home residents"),
+        line = 0, font = 3, cex = 0.7, at = at)
 }
 
 
@@ -779,7 +816,7 @@ plot_paper_fig5 <- function(samples, data, date, region_names, maps, regions) {
          region = region_names,
          title = title,
          date = date,
-         ymax = 20, pos_col = paper_cols["purple"],
+         ymax = 30, pos_col = paper_cols["purple"],
          inf_col = paper_cols["nowcast"], alpha = 0.3,
          plot_legend = c(TRUE, rep(FALSE, length(region_names) - 1)))
 
@@ -787,7 +824,8 @@ plot_paper_fig5 <- function(samples, data, date, region_names, maps, regions) {
   par(mar = c(2, 2.5, 2, 1), mgp = c(1.5, 0.5, 0))
   plot_cum_inf_ch(samples[region_names], data[region_names],
                   date = date,
-                  col_comm = paper_cols["hosp"], col_ch = paper_cols["comm"],
+                  col_comm = paper_cols["hosp"],
+                  col_ch = paper_cols["carehomes"],
                   regions = regions)
   title(main = "H)", font.main = 1, adj = 0)
   par(mar = c(0, 0, 3, 0))
@@ -795,7 +833,7 @@ plot_paper_fig5 <- function(samples, data, date, region_names, maps, regions) {
   title(main = "I) Total population", font.main = 1, line = 1, adj = 0.05)
   plot_map(samples, regions = maps, date = date, what = "S_CHR", legend = TRUE,
            add_label = FALSE)
-  title(main = "J) Care home residents (CHR)", font.main = 1, line = 1,
+  title(main = "J) Care home residents", font.main = 1, line = 1,
         adj = 0.05)
 }
 
@@ -878,15 +916,17 @@ plot_serology <- function(sample, data, date, region, title = "",
   par(mgp = c(1.7, 0.5, 0), bty = "n")
   x <- sircovid::sircovid_date_as_date(sample$trajectories$date)
   x <- x[x <= date]
-  xlim <- c(min(x[-1L]), max(x[-1L]))
+  xlim <- as.Date(c("2020-03-01", "2020-12-01"))
   plot(xlim[1], 0, type = "n",
        xlim = xlim,
        ylim = ylim, las = 1,
        main = "",
+       xaxt = "n",
        font.main = 1,
        xlab = "", ylab = "Cumulative proportion (%)")
   title(main = title, adj = 0, font.main = 1, line = 0.5,
         cex.main = 1)
+  axis.Date(1, at = seq.Date(xlim[1], xlim[2], "3 months"))
 
   lapply(X = seq_len(nrow(summ_serodata)), FUN = function(i) {
 
@@ -946,8 +986,9 @@ plot_map <- function(samples, regions, date, legend = TRUE, what = "total",
   }
 
   cumincid <- sapply(samples, extract_cumincid)
-
-  max_incid <- ceiling(max(cumincid[c("S_CHR", "total"), ]) * 100 / 5) * 5
+  breaks <- 10
+  max_incid <- ceiling(max(cumincid[c("S_CHR", "total"), ]) * 100 / breaks) *
+    breaks
 
   r <- c("london", "east_of_england", "midlands", "north_east_and_yorkshire",
          "north_west", "south_east", "south_west")
@@ -958,7 +999,7 @@ plot_map <- function(samples, regions, date, legend = TRUE, what = "total",
   cols <- palette[round(cumincid[what, r] * 100 * dp)]
   names(cols) <- r
 
-  w <- seq(2.5, max_incid, by = 2.5)
+  w <- seq(breaks / 2, max_incid, by = breaks / 2)
 
   w_lab <- paste0(w, "%")
   w_lab[seq(1, length(w), by = 2)] <- ""
@@ -1071,4 +1112,381 @@ plot_supplement_testing <- function(sample, data, title, col, col_data,
   lines(x, qs["50%", ], col = col, lty = 1, lwd = 1.5, lend = 1)
   segments(x0 = dx, y0 = lower, y1 = upper, col = col_data)
   points(dx, dy, pch = 23, bg = col_data, cex = 0.8, lwd = 0.6)
+}
+
+
+process_plot_epiestim <- function(Rt_ref, Rt_1, Rt_2, shift_t_2) {
+
+  t_ref <- sircovid:::sircovid_date_as_date(Rt_ref$date[, 1])
+  y_ref <- apply(Rt_ref$eff_Rt_general, 1, mean, na.rm = TRUE)
+  y_ref_low <- apply(Rt_ref$eff_Rt_general, 1, quantile, 0.025, na.rm = TRUE)
+  y_ref_up <- apply(Rt_ref$eff_Rt_general, 1, quantile, 0.975, na.rm = TRUE)
+
+  rm_na <- which(is.na(y_ref))
+  if (length(rm_na) > 0) {
+    t_ref <- t_ref[-rm_na]
+    y_ref <- y_ref[-rm_na]
+    y_ref_low <- y_ref_low[-rm_na]
+    y_ref_up <- y_ref_up[-rm_na]
+  }
+
+  t_1 <- sircovid:::sircovid_date_as_date(Rt_1$t_end)
+  y_1 <- Rt_1$Rt_summary["mean_R", ]
+  y_1_low <- Rt_1$Rt_summary["2.5%", ]
+  y_1_up <- Rt_1$Rt_summary["97.5%", ]
+
+  rm_na <- which(is.na(y_1))
+  if (length(rm_na) > 0) {
+    t_1 <- t_1[-rm_na]
+    y_1 <- y_1[-rm_na]
+    y_1_low <- y_1_low[-rm_na]
+    y_1_up <- y_1_up[-rm_na]
+  }
+
+  t_common_1 <- sircovid:::sircovid_date_as_date(intersect(sircovid_date(t_ref),
+                                                           sircovid_date(t_1)))
+  y_ref_common_1 <- y_ref[t_ref %in% t_common_1]
+  y_ref_low_common_1 <- y_ref_low[t_ref %in% t_common_1]
+  y_ref_up_common_1 <- y_ref_up[t_ref %in% t_common_1]
+  y_1_common_1 <- y_1[t_1 %in% t_common_1]
+  y_1_low_common_1 <- y_1_low[t_1 %in% t_common_1]
+  y_1_up_common_1 <- y_1_up[t_1 %in% t_common_1]
+
+  mean_rel_1 <- (y_1_common_1 - y_ref_common_1) / y_ref_common_1
+
+  ## version using end of week
+  t_2 <- sircovid::sircovid_date_as_date(Rt_2$t_end - shift_t_2)
+  ## version centered on middle of week
+  y_2 <- Rt_2$Rt_summary["mean_R", ]
+  y_2_low <- Rt_2$Rt_summary["2.5%", ]
+  y_2_up <- Rt_2$Rt_summary["97.5%", ]
+
+  rm_na <- which(is.na(y_2))
+  if (length(rm_na) > 0) {
+    t_2 <- t_2[-rm_na]
+    y_2 <- y_2[-rm_na]
+    y_2_low <- y_2_low[-rm_na]
+    y_2_up <- y_2_up[-rm_na]
+  }
+
+  t_common_2 <- sircovid:::sircovid_date_as_date(intersect(sircovid_date(t_ref),
+                                                           sircovid_date(t_2)))
+  y_ref_low_common_2 <- y_ref_low[t_ref %in% t_common_2]
+  y_ref_up_common_2 <- y_ref_up[t_ref %in% t_common_2]
+  y_ref_common_2 <- y_ref[t_ref %in% t_common_2]
+  y_2_common_2 <- y_2[t_2 %in% t_common_2]
+  y_2_low_common_2 <- y_2_low[t_2 %in% t_common_2]
+  y_2_up_common_2 <- y_2_up[t_2 %in% t_common_2]
+
+  mean_rel_2 <- (y_2_common_2 - y_ref_common_2) / y_ref_common_2
+
+  list(ref = list(t = t_ref,
+                  y = y_ref,
+                  y_low = y_ref_low,
+                  y_up = y_ref_up),
+       r1 = list(t = t_1,
+                 y = y_1,
+                 y_low = y_1_low,
+                 y_up = y_1_up),
+       r2 = list(t = t_2,
+                 y = y_2,
+                 y_low = y_2_low,
+                 y_up = y_2_up),
+       ref_common_1 = list(t = t_common_1,
+                           y_ref = y_ref_common_1,
+                           y_ref_low = y_ref_low_common_1,
+                           y_ref_up = y_ref_up_common_1,
+                           y = y_1_common_1,
+                           y_low = y_1_low_common_1,
+                           y_up = y_1_up_common_1,
+                           mean_rel = mean_rel_1),
+       ref_common_2 = list(t = t_common_2,
+                           y_ref = y_ref_common_2,
+                           y_ref_low = y_ref_low_common_2,
+                           y_ref_up = y_ref_up_common_2,
+                           y = y_2_common_2,
+                           y_low = y_2_low_common_2,
+                           y_up = y_2_up_common_2,
+                           mean_rel = mean_rel_2)
+  )
+}
+
+
+add_polygon <- function(x, ylow, yup, col, border = NA) {
+  polygon(c(x, rev(x)), c(ylow, rev(yup)),
+          col = col,
+          border = border)
+}
+
+
+plot_epiestim <- function(Rt_ref, Rt_1, Rt_2, shift_t_2,
+                          transp_level = 0.4,
+                          legend_cex = 0.8,
+                          col_ref = paper_cols["nowcast"],
+                          cols = paper_cols[c("purple", "yellow")]) {
+
+  xx <- process_plot_epiestim(Rt_ref,
+                              Rt_1,
+                              Rt_2,
+                              shift_t_2)
+
+  time_lim <- range(c(xx$ref$t, xx$r1$t, xx$r2$t))
+
+  par(mfrow = c(3, 2), mar = c(5, 5, .5, .5))
+
+  plot(xx$ref$t,
+       xx$ref$y,
+       type = "l", col = col_ref,
+       xlim = time_lim,
+       ylim = c(0, 3),
+       xlab = "Date",
+       ylab = expression(R[e](t)))
+  add_polygon(xx$ref$t, xx$ref$y_low, xx$ref$y_up,
+              scales::alpha(col_ref, transp_level))
+
+  lines(xx$r1$t, xx$r1$y, col = cols[1])
+  add_polygon(xx$r1$t, xx$r1$y_low, xx$r1$y_up,
+              scales::alpha(cols[1], transp_level))
+
+  abline(h = 1, col = "grey", lty = 2)
+
+  legend("topright",
+         c("EpiEstim (infections)",
+           "NGM"), # this is eff_Rt_general
+         col = c(cols[1], col_ref), lty = 1, cex = legend_cex)
+
+  plot(xx$ref$t,
+       xx$ref$y,
+       type = "l", col = col_ref,
+       xlim = time_lim,
+       ylim = c(0, 3),
+       xlab = "Date",
+       ylab = expression(R[e](t)))
+  add_polygon(xx$ref$t, xx$ref$y_low, xx$ref$y_up,
+              scales::alpha(col_ref, transp_level))
+
+  lines(xx$r2$t, xx$r2$y, col = cols[2])
+  add_polygon(xx$r2$t, xx$r2$y_low, xx$r2$y_up,
+              scales::alpha(cols[2], transp_level))
+
+  abline(h = 1, col = "grey", lty = 2)
+
+  legend("topright",
+         c("EpiEstim (deaths)",
+           "NGM"), # this is eff_Rt_general
+         col = c(cols[2], col_ref), lty = 1, cex = legend_cex)
+
+  ## relative error
+
+  ylab <- expression(paste("Relative difference in mean ", R[e](t)))
+
+  plot(xx$ref_common_1$t, xx$ref_common_1$mean_rel,
+       type = "l", col = cols[1],
+       xlim = time_lim,
+       ylim = c(-1, 1),
+       xlab = "Date",
+       ylab = ylab)
+
+  x_grey_rect <- c(min(xx$ref$t) - 60, max(xx$ref$t) + 60)
+  polygon(c(x_grey_rect, rev(x_grey_rect)),
+          c(-0.1, -0.1, 0.1, 0.1),
+          border = NA, col = scales::alpha("lightgrey", 0.3))
+  abline(h = 0, col = "grey", lty = 2)
+  lines(xx$ref_common_1$t, xx$ref_common_1$mean_rel, col = cols[1])
+
+  plot(xx$ref_common_2$t, xx$ref_common_2$mean_rel,
+       type = "l", col = cols[2],
+       xlim = time_lim,
+       ylim = c(-1, 1),
+       xlab = "Date",
+       ylab = ylab)
+  polygon(c(x_grey_rect, rev(x_grey_rect)),
+          c(-0.1, -0.1, 0.1, 0.1),
+          border = NA, col = scales::alpha("lightgrey", 0.3))
+  abline(h = 0, col = "grey", lty = 2)
+  lines(xx$ref_common_2$t, xx$ref_common_2$mean_rel, col = cols[2])
+
+  ## Correlation between mean estimates
+
+  plot(xx$ref_common_1$y_ref, xx$ref_common_1$y,
+       pch = 16,
+       col = scales::alpha(cols[1], 0),
+       xlim = c(0, 3), ylim = c(0, 3),
+       xlab = expression(paste(R[e](t), " (NGM)")),
+       ylab = expression(paste(R[e](t), " (EpiEstim)")))
+
+  for (i in seq_len(length(xx$ref_common_1$y_ref))) {
+    segments(xx$ref_common_1$y_ref_low[i], xx$ref_common_1$y[i],
+             xx$ref_common_1$y_ref_up[i], xx$ref_common_1$y[i],
+             col = scales::alpha(cols[1], transp_level))
+    segments(xx$ref_common_1$y_ref[i], xx$ref_common_1$y_low[i],
+             xx$ref_common_1$y_ref[i], xx$ref_common_1$y_up[i],
+             col = scales::alpha(cols[1], transp_level))
+  }
+
+  Rsq_1 <- cor(xx$ref_common_1$y_ref, xx$ref_common_1$y, use = "complete.obs")^2
+  text(0.2, 2.6, expression(R^2), pos = 3)
+  text(0.6, 2.6, paste(" =", signif(Rsq_1, 2)), pos = 3)
+
+  abline(0, 1, col = "grey", lty = 2)
+
+
+  plot(xx$ref_common_2$y_ref, xx$ref_common_2$y,
+       pch = 16,
+       col = scales::alpha(cols[2], 0),
+       xlim = c(0, 3), ylim = c(0, 3),
+       xlab = expression(paste(R[e](t), " (NGM)")),
+       ylab = expression(paste(R[e](t), " (EpiEstim)")))
+
+  for (i in seq_len(length(xx$ref_common_2$y_ref))) {
+    segments(xx$ref_common_2$y_ref_low[i], xx$ref_common_2$y[i],
+             xx$ref_common_2$y_ref_up[i], xx$ref_common_2$y[i],
+             col = scales::alpha(cols[2], transp_level))
+    segments(xx$ref_common_2$y_ref[i], xx$ref_common_2$y_low[i],
+             xx$ref_common_2$y_ref[i], xx$ref_common_2$y_up[i],
+             col = scales::alpha(cols[2], transp_level))
+  }
+
+  Rsq_2 <- cor(xx$ref_common_2$y_ref, xx$ref_common_2$y, use = "complete.obs")^2
+  text(0.2, 2.6, expression(R^2), pos = 3)
+  text(0.6, 2.6, paste(" =", signif(Rsq_2, 2)), pos = 3)
+
+  abline(0, 1, col = "grey", lty = 2)
+
+}
+
+plot_all_by_age <- function(samples,
+                            date,
+                            yield,
+                            xlim = as.Date(c("2020-03-15", date)),
+                            now_col = "#278B9AFF",
+                            dcols = c("#E48C2AFF", "#228B22FF"),
+                            alpha = 0.3,
+                            what = NULL) {
+  if (yield == "deaths") {
+    lapply(X = what, FUN = function(w) {
+      plot_deaths(samples, date = date, xlim = xlim,
+                  ylim = c(1, max(samples$upper_bound, na.rm = TRUE)),
+                  now_col = now_col, dcols = dcols, alpha = alpha,
+                  what = w)
+    })
+  }
+
+  if (yield == "admissions") {
+    lapply(X = what, FUN = function(w) {
+      plot_admissions(samples, date = date, xlim = xlim,
+                      ylim = c(1, max(samples$upper_bound, na.rm = TRUE)),
+                      now_col = now_col, dcols = dcols, alpha = alpha,
+                      what = w)
+    })
+  }
+}
+
+plot_deaths <- function(samples,
+                        date,
+                        what = "death_65",
+                        xlim = as.Date(c("2020-03-15", date)),
+                        ylim = c(1, 200),
+                        now_col = "#278B9AFF",
+                        dcols = c("#228B22FF", "#228B22FF"),
+                        alpha = 0.3) {
+
+  # Get model results
+  res <- NULL
+  res$count <- samples$output_t[-1, what]
+  res$lb <- samples$lower_bound[-1, what]
+  res$ub <- samples$upper_bound[-1, what]
+
+  date_res <- seq.Date(as.Date("2020-03-15"),
+                       as.Date("2020-03-15") + length(res$count) - 1,
+                       by = "days")
+  res$date_res <- date_res
+  res <- as.data.frame(res)
+  res <- res %>% dplyr::filter(date_res <= as.Date(date))
+
+  # Get data
+  date_seq <- data.frame(
+    date = seq.Date(as.Date("2020-03-15"), as.Date(date), by = "days"))
+  data <- samples$data %>%
+    dplyr::select(date_res = "date", count = get("what")) %>%
+    mutate(date_res = as.Date(date_res))
+  data <- dplyr::left_join(as.data.frame(date_res), as.data.frame(data))
+
+  # Vectors for plotting
+  x_nowcast <- res$date_res
+  y_nowcast <- res$count + 1
+  lb <- res$lb + 1
+  ub <- res$ub + 1
+
+  dx <- data$date
+  dy <- data$count + 1
+
+  par(mgp = c(1.7, 0.5, 0), bty = "n")
+  plot(xlim[1], 0, type = "n",
+       xlim = xlim,
+       ylim = ylim,
+       log = "y",
+       xlab = "", ylab = "log scale", cex.lab = 0.8)
+  now_cols <- add_alpha(rep(now_col, 2), alpha)
+
+  polygon(c(x_nowcast, rev(x_nowcast)), c(lb, rev(ub)),
+          density = 200, col = now_cols)
+  lines(x_nowcast, y_nowcast, col = now_col, lty = 1, lwd = 1.5, lend = 1)
+  points(dx, dy, pch = 23, bg = dcols[1], col = dcols[2], cex = 0.7, lwd = 0.6)
+
+}
+
+
+plot_admissions <- function(samples,
+                            date,
+                            what = "adm_65",
+                            xlim = as.Date(c("2020-03-15", date)),
+                            ylim = c(1, 200),
+                            now_col = "#278B9AFF",
+                            dcols = c("#228B22FF", "#228B22FF"),
+                            alpha = 0.3) {
+
+  # Get model results
+  res <- NULL
+  res$count <- samples$output_t[-1, what]
+  res$lb <- samples$lower_bound[-1, what]
+  res$ub <- samples$upper_bound[-1, what]
+
+  date_res <- seq.Date(as.Date("2020-03-15"),
+                       as.Date("2020-03-15") + length(res$count) - 1,
+                       by = "days")
+  res$date_res <- date_res
+  res <- as.data.frame(res)
+  res <- res %>% dplyr::filter(date_res <= as.Date(date))
+
+  # Get data
+  date_seq <- data.frame(
+    date = seq.Date(as.Date("2020-10-13"), as.Date(date), by = "days"))
+  data <- samples$data %>%
+    dplyr::select(date_res = "date", count = get("what")) %>%
+    mutate(date_res = as.Date(date_res))
+  data <- dplyr::left_join(as.data.frame(date_res), as.data.frame(data))
+
+  # Vectors for plotting
+  x_nowcast <- res$date_res
+  y_nowcast <- res$count + 1
+  lb <- res$lb + 1
+  ub <- res$ub + 1
+
+  dx <- data$date
+  dy <- data$count + 1
+
+  par(mgp = c(1.7, 0.5, 0), bty = "n")
+  plot(xlim[1], 0, type = "n",
+       xlim = xlim,
+       ylim = ylim,
+       log = "y",
+       xlab = "", ylab = "log scale", cex.lab = 0.8)
+  now_cols <- add_alpha(rep(now_col, 2), alpha)
+
+  polygon(c(x_nowcast, rev(x_nowcast)), c(lb, rev(ub)),
+          density = 200, col = now_cols)
+  lines(x_nowcast, y_nowcast, col = now_col, lty = 1, lwd = 1.5, lend = 1)
+  points(dx, dy, pch = 23, bg = dcols[1], col = dcols[2], cex = 0.7, lwd = 0.6)
+
 }

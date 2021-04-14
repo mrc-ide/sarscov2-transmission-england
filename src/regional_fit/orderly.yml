@@ -20,7 +20,10 @@ artefacts:
         - outputs/sample_pmcmc_results.rds
         - outputs/parameters_covariance.csv
         - outputs/Rt.rds
+        - outputs/ifr_t.rds
         - outputs/data.rds
+        - outputs/admissions_by_age.rds
+        - outputs/deaths_by_age.rds
   - data:
       description: inputs for combined task
       filenames:
@@ -33,18 +36,23 @@ packages:
   - mcstate
   - coda
   - dplyr
+  - distcrete
+  - EpiEstim
 
 sources:
   - fit.R
+  - plot.R
   - support.R
   - util.R
 
 resources:
   - parameters_info.csv
   - parameters_proposal.csv
+  - admissions_nhse.csv
   - support_progression.csv
   - support_severity.csv
   - data_serology.csv
   - parameters_prior.csv
   - data_rtm.csv
+  - admissions_age_sitrep.csv
   - support_age_profile.csv

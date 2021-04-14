@@ -1,4 +1,5 @@
 create_forest_plot <- function(samples, date) {
+
   ## Order by start_date
   mean_start_date <- vapply(samples, function(x)
     mean(x$pars[, "start_date"]), numeric(1))
@@ -10,12 +11,36 @@ create_forest_plot <- function(samples, date) {
 
   ## Formats for region labels
   labels <- regions[ordered_regions, "label"]
+
   par_names <- colnames(samples[[1]]$pars)
-  gamma_names <- par_names[grep(pattern = "gamma", x = par_names)]
-  ch_names <- c("eps", "C_1", "C_2")
-  mu_names <- c("mu_death_hosp", "mu_ICU_hosp")
+
+  par_labels <-
+    expression(alpha_D = alpha[D], alpha_H = alpha[H],
+               beta1 = beta[1], beta2 = beta[2], beta3 = beta[3],
+               beta4 = beta[4], beta5 = beta[5], beta6 = beta[6],
+               beta7 = beta[7], beta8 = beta[8], beta9 = beta[9],
+               beta10 = beta[10], beta11 = beta[11], beta12 = beta[12],
+               eps = epsilon, m_CHR = m[CHR], m_CHW = m[CHW],
+               mu_D = mu[D], mu_ICU = mu[ICU],
+               p_G_D = p[G[D]], p_G_D_CHR = p[G[D]] ^ {CHR},
+               p_H = p[H], p_H_CHR = p[H] ^ {CHR}, p_H_D = p[H[D]],
+               p_ICU = p[ICU], p_ICU_D = p[ICU[D]],
+               p_NC = p[NC], p_W_D = p[W[D]],
+               rho_pillar2_tests = rho[P2[test]],
+               start_date = t[0])
+
+  stopifnot(length(setdiff(par_names, names(par_labels))) == 0)
+
+  ch_names <- c("eps", "m_CHW", "m_CHR")
+  mu_names <- par_names[substr(par_names, 1, 3) == "mu_"]
+  alpha_names <- par_names[substr(par_names, 1, 6) == "alpha_"]
   beta_names <- par_names[substr(par_names, 1, 4) == "beta"]
+  beta_names <- beta_names[order(as.numeric(gsub("beta", "", beta_names)))]
   p_names <- par_names[substr(par_names, 1, 2) == "p_"]
+
+  p_max <- rep(1, length(p_names))
+  p_max[p_names == "p_NC"] <- 0.01
+  p_max[p_names == "p_G_D"] <- 0.05
 
   n_regions <- length(samples)
 
@@ -25,26 +50,6 @@ create_forest_plot <- function(samples, date) {
   }
 
   numeric_start_date <- extract_sample(par_name = "start_date")
-
-  if (length(gamma_names) > 0) {
-    gamma_durations <- lapply(X = gamma_names, FUN = extract_duration)
-    names(gamma_durations) <- gamma_names
-  }
-
-  ch <- lapply(ch_names, FUN = extract_sample)
-  names(ch) <- ch_names
-
-  ps <- lapply(p_names, FUN = extract_sample)
-  names(ps) <- p_names
-
-  betas <- lapply(beta_names, FUN = extract_sample)
-  names(betas) <- beta_names
-
-  mus <- lapply(mu_names, FUN = extract_sample)
-  names(mus) <- mu_names
-
-  prop_noncovid_sympt <- extract_sample("prop_noncovid_sympt")
-  rho_pillar2_tests <- extract_sample("rho_pillar2_tests")
 
   ylim <- c(0.5, n_regions + 0.5)
 
@@ -60,229 +65,123 @@ create_forest_plot <- function(samples, date) {
   }
 
   col_line <- "red3"
-  plot_p <- function(p_name, xlim  = c(0, 1)) {
+
+  plot_par <- function(par_name, xmin = 0, xmax = 0.1, nxaxis = 4) {
+    par <- extract_sample(par_name)
+
     plot(0, 0, type = "n",
          ylab = "",
-         xlab = p_name,
-         xlim = xlim,
+         xlab = par_labels[par_name],
+         xaxt = "n",
+         xlim = c(xmin, xmax),
          ylim = ylim,
          yaxt = "n")
+    xaxis_labels <- pretty(c(xmin, xmax), n = nxaxis, min.n = 2)
+    axis(1, xaxis_labels, prettyNum(xaxis_labels))
+
     jitter <- 0.5
-    regions <- names(ps[[p_name]])
-    hp <- subset(hps, name == p_name)
-    if (nrow(hp) > 0) {
-      if (nrow(hp) > 1) {
-        rownames(hp) <- hp$region
-        hp <- hp[regions, ] # sort in correct order
-        shape1 <- hp$beta_shape1
-        shape2 <- hp$beta_shape2
-      } else {
-        shape1 <- rep(hp$beta_shape1, length(ps))
-        shape2 <- rep(hp$beta_shape2, length(ps))
-      }
-
-      prior <- mapply(qbeta,
-                      shape1 = shape1,
-                      shape2 = shape2,
-                      MoreArgs = list(p = c(0.025, 0.975)),
-                      SIMPLIFY = TRUE)
-
-      segments(x0 = prior[1, ],
-               y0 = at - jitter, y1 = at + jitter,
-               col = col_line, lty = 2, lwd = 1, lend = 2)
-      segments(x0 = prior[2, ],
-               y0 = at - jitter, y1 = at + jitter,
-               col = col_line, lty = 2, lwd = 1, lend = 2)
-    }
-    mapply(plot_CI_bar, res = ps[[p_name]], at = at, width = 0.1)
-  }
-
-  plot_ch <- function(ch_name, xmax = 0.1, prior_scale, prior_shape) {
-    plot(0, 0, type = "n",
-         ylab = "",
-         xlab = ch_name,
-         xlim = c(0, xmax),
-         ylim = ylim,
-         yaxt = "n")
-    if (ch_name %in% c("C_1", "C_2")) {
-      jitter <- 0.5
-      regions <- names(ch[[ch_name]])
-      hp <- subset(hps, name == ch_name)
-      if (nrow(hp) > 0) {
-        if (nrow(hp) > 1) {
-          rownames(hp) <- hp$region
-          hp <- hp[regions, ] # sort in correct order
-          scale <- hp$gamma_scale
-          shape <- hp$gamma_shape
-        } else {
-          scale <- rep(hp$gamma_scale, length(ps))
-          shape <- rep(hp$gamma_shape, length(ps))
-        }
-
-        prior <- mapply(qgamma,
-                        shape = shape,
-                        scale = scale,
+    regions <- names(par)
+    hp <- subset(hps, name == par_name)
+    rownames(hp) <- hp$region
+    hp <- hp[regions, ] # sort in correct order
+    if (hp$type[1] == "beta") {
+      shape1 <- hp$beta_shape1
+      shape2 <- hp$beta_shape2
+      if (!(all(shape1 == 1) && all(shape2 == 1))) {
+        prior <- mapply(qbeta,
+                        shape1 = shape1,
+                        shape2 = shape2,
                         MoreArgs = list(p = c(0.025, 0.975)),
                         SIMPLIFY = TRUE)
 
 
         segments(x0 = prior[1, ],
-                 y0 = at - jitter, y1 = at + jitter,
+                 y0 = at- jitter, y1 = at + jitter,
                  col = col_line, lty = 2, lwd = 1, lend = 2)
         segments(x0 = prior[2, ],
-                 y0 = at - jitter, y1 = at + jitter,
+                 y0 = at- jitter, y1 = at + jitter,
                  col = col_line, lty = 2, lwd = 1, lend = 2)
       }
     }
-    mapply(plot_CI_bar, res = ch[[ch_name]], at = at, width = 0.1)
-  }
-
-  plot_prop <- function(prop_name, xmax = 0.1) {
-    plot(0, 0, type = "n",
-         ylab = "",
-         xlab = prop_name,
-         xlim = c(0, xmax),
-         ylim = ylim,
-         yaxt = "n")
-    mapply(plot_CI_bar, res = prop_noncovid_sympt, at = at, width = 0.1)
-  }
-
-  plot_mu <- function(mu_name, xmax = 0.1) {
-    plot(0, 0, type = "n",
-         ylab = "",
-         xlab = mu_name,
-         xlim = c(0, xmax),
-         ylim = ylim,
-         yaxt = "n")
-    mapply(plot_CI_bar, res = mus[[mu_name]], at = at, width = 0.1)
-  }
-
-  plot_rho <- function(prop_name, xmax = 0.1) {
-    plot(0, 0, type = "n",
-         ylab = "",
-         xlab = prop_name,
-         xlim = c(0, xmax),
-         ylim = ylim,
-         yaxt = "n")
-    mapply(plot_CI_bar, res = rho_pillar2_tests, at = at, width = 0.1)
-  }
-
-  plot_gamma <- function(gamma_name, xmax = 25, prior_scale, prior_shape) {
-    xlab <- paste(substr(x = gamma_name, start = 7, stop = nchar(gamma_name)),
-                  "(days)")
-    plot(0, 0, type = "n",
-         ylab = "",
-         xlab = xlab,
-         xlim = c(0, xmax),
-         ylim = ylim,
-         yaxt = "n")
-    add_gamma_prior(scale = prior_scale, shape = prior_shape, ylim = ylim)
-
-    mapply(plot_CI_bar, res = gamma_durations[[gamma_name]], at = at,
-           width = 0.1)
-  }
-
-  plot_betas <- function(beta_name, xlim = c(0, 0.12)) {
-    plot(0, 0, type = "n",
-         ylab = "",
-         xlab = beta_name,
-         xlim = xlim,
-         ylim = ylim,
-         yaxt = "n"
-    )
-    jitter <- 0.5
-    regions <- names(betas[[beta_name]])
-    hp <- subset(hps, name == beta_name)
-    if (nrow(hp) > 0) {
-      if (nrow(hp) > 1) {
-        rownames(hp) <- hp$region
-        hp <- hp[regions, ] # sort in correct order
-        scale <- hp$gamma_scale
-        shape <- hp$gamma_shape
-      } else {
-        scale <- rep(hp$gamma_scale, length(ps))
-        shape <- rep(hp$gamma_shape, length(ps))
-      }
-
+    if (hp$type[1] == "gamma") {
+      shape <- hp$gamma_shape
+      scale <- hp$gamma_scale
       prior <- mapply(qgamma,
                       shape = shape,
                       scale = scale,
                       MoreArgs = list(p = c(0.025, 0.975)),
                       SIMPLIFY = TRUE)
 
+
       segments(x0 = prior[1, ],
-               y0 = at - jitter, y1 = at + jitter,
+               y0 = at- jitter, y1 = at + jitter,
                col = col_line, lty = 2, lwd = 1, lend = 2)
       segments(x0 = prior[2, ],
-               y0 = at - jitter, y1 = at + jitter,
+               y0 = at- jitter, y1 = at + jitter,
                col = col_line, lty = 2, lwd = 1, lend = 2)
     }
-    mapply(plot_CI_bar, res = betas[[beta_name]], at = at, width = 0.1)
+
+    mapply(FUN = plot_CI_bar, res = par, at = at, width = 0.1)
+
   }
 
   hps <- read.csv("parameters_prior.csv", stringsAsFactors = FALSE)
 
-  par(bty = "n", mar = c(3, 0, 1, 0), mgp = c(2, 0.75, 0), oma = c(2, 0, 3, 3))
 
   npar <- length(par_names)
-  nrow <- 4
-  plot_per_row <- ceil(npar / nrow)
-  colwidth <- 64 / plot_per_row
+  nrow <- 6
+  plot_per_row <- ceiling(npar / nrow)
+  nplots <- (plot_per_row + 1) * nrow
 
-  reps <- rep(c(3.5, rep(colwidth, plot_per_row)), nrow)
+  layout(mat = matrix(seq_len(nplots), nrow = nrow, byrow = TRUE),
+         widths = c(1, rep(2, plot_per_row)))
 
-  layout(mat = matrix(rep(seq_along(reps), reps),
-                      nrow = nrow, byrow = TRUE),
-         heights = rep(3, nrow), widths = c(4, rep(1, plot_per_row * colwidth))
-  )
   at <- seq_len(n_regions)
   plot_axis()
 
   ## start_date plot
-  par(mar = c(3, 0, 1, 0.5))
+
   plot(x = sircovid::sircovid_date("2020-01-01"),
        y = 1,
        type = "n",
        ylab = "",
-       xlab = "start_date",
-       xlim = sircovid::sircovid_date(c("2020-01-15", "2020-03-01")),
+       xlab = par_labels["start_date"],
+       xlim = sircovid::sircovid_date(c("2020-01-01", "2020-03-01")),
        ylim = ylim,
-       yaxt = "n")
+       axes = FALSE)
   mapply(plot_CI_bar, res = numeric_start_date, at = at, width = 0.1)
+  axis_dates <- c("2020-01-01", "2020-02-01", "2020-03-01")
+  axis(1, at = sircovid::sircovid_date(axis_dates),
+        labels = format.Date(axis_dates, "%b"))
 
-  mapply(plot_betas, beta_name = beta_names[c(1, 5:9)])
+  beta_xmax <- 0.15
+  mapply(plot_par, par_name = beta_names[1:4], xmax = beta_xmax)
 
   ## 2nd row
   plot_axis()
-  par(mar = c(3, 0, 1, 0.5))
-
-  mapply(plot_betas, beta_name = beta_names[c(10:12, 2:4)])
-
-  ## gamma plot
-  hps_global <- subset(hps, region == "england")
-  rownames(hps_global) <- hps_global$name
-  if (length(gamma_names) > 0) {
-    mapply(plot_gamma, gamma_name = gamma_names, xmax = c(8, 15, 6, 6, 6, 6),
-           prior_shape = hps_global[gamma_names, "gamma_shape"],
-           prior_scale = hps_global[gamma_names, "gamma_scale"])
-  }
-
-  plot_prop("prop_noncovid_sympt", xmax = 5e-3)
+  mapply(plot_par, par_name = beta_names[5:9], xmax = beta_xmax)
 
   ## 3rd row
   plot_axis()
-
-  plot_rho("rho_pillar2_tests", xmax = 0.01)
-  ## p plot
-  mapply(plot_p, p_name = p_names[1:6])
+  mapply(plot_par, par_name = beta_names[10:12], xmax = beta_xmax)
+  mapply(plot_par, par_name = alpha_names[1:2], xmax = c(1, 0.1))
 
   ## 4th row
   plot_axis()
-  plot_mu("mu_death_hosp", xmax = 1)
-  plot_mu("mu_ICU_hosp", xmax = 1)
-  mapply(plot_ch, ch_name = ch_names, xmax = c(1, 2e-5, 2e-5),
-         prior_shape = hps_global[ch_names, "gamma_shape"],
-         prior_scale = hps_global[ch_names, "gamma_scale"])
+  plot_par(par_name = "rho_pillar2_tests", xmax = 0.01)
+  idx_p <- 1:4
+  mapply(plot_par, par_name = p_names[idx_p], xmax = p_max[idx_p])
+
+  ## 5th row
+  plot_axis()
+  idx_p <- 5:9
+  mapply(plot_par, par_name = p_names[idx_p], xmax = p_max[idx_p])
+
+  ## 5th row
+  plot_axis()
+  mapply(plot_par, par_name = mu_names[1:2], xmax = 1)
+  mapply(plot_par, par_name = ch_names[1:3], xmax = c(1, 2.5e-5, 2.5e-5),
+         nxaxis = c(5, 2, 2))
 
   mtext(text = paste("Inferred epidemic parameters for NHS regions at", date),
         side = 3, line = 0, outer = TRUE, cex = 1.1)

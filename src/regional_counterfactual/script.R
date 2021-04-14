@@ -1,6 +1,6 @@
-version_check("sircovid", "0.7.4")
-version_check("mcstate", "0.2.15")
-version_check("dust", "0.5.3")
+version_check("sircovid", "0.10.23")
+version_check("mcstate", "0.5.11")
+version_check("dust", "0.8.19")
 
 sample <- readRDS("inputs/sample_pmcmc.rds")
 sample <- thin_sample(sample, n_par)

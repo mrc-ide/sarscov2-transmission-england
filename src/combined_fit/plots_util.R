@@ -1,9 +1,10 @@
 ## colour palettes
 paper_cols <- c(red = "#E75B64FF", orange = "#E48C2AFF", yellow = "#DCCA2CFF",
                 green = "#58A449FF", blue1 = "#67B9E9FF", blue2 = "#AE93BEFF",
-                purple = "#5C5992FF", comm = "#CEC917FF", hosp = "#4D6D93FF",
-                nowcast = "#278B9AFF", data_fitted = "#E48C2AFF",
-                data_unfitted = "#228B22FF")
+                purple = "#5C5992FF", carehomes = "#CEC917FF",
+                hosp = "#4D6D93FF", comm = "#B50A2AFF",
+                nowcast = "#278B9AFF",
+                data_fitted = "#E48C2AFF", data_unfitted = "#228B22FF")
 paper_seq_palette <- colorRampPalette(c("#C0DDE1FF", "#14454CFF"))
 paper_seq_palette2 <- colorRampPalette(c("#D7CADEFF", "#1F1935FF"))
 paper_seq_palette3 <- colorRampPalette(c("#213148FF", "#A1B1C8FF"))

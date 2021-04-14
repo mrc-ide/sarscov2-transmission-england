@@ -12,9 +12,9 @@ The core requirement is our [sircovid](https://mrc-ide.github.io/sircovid/) pack
 
 ```r
 remotes::install_github(c(
-  "mrc-ide/dust@v0.5.6",
-  "mrc-ide/mcstate@v0.2.15",
-  "mrc-ide/sircovid@v0.7.8"))
+  "mrc-ide/dust@v0.8.19",
+  "mrc-ide/mcstate@v0.5.11",
+  "mrc-ide/sircovid@v0.10.23"))
 ```
 
 However, you can always install the versions that we are using with

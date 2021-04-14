@@ -25,7 +25,14 @@ vnapply <- function(X, FUN, ...) {
 paper_date <- "2020-12-02"
 start_data <- "2020-03-16"
 end_first_wave <- "2020-08-01"
-ld_dates <- list( ld1 = "2020-03-25", ld2 = "2020-11-05")
+# dates are midpoint of first and second lockdown
+# lockdown 1: 2021-03-23 to 2020-05-11
+# lockdown 2: 2020-11-05 -> paper date = "2020-12-02"
+ld_dates <- data.frame(name  = c("ld1", "ld2"),
+                       start = sircovid_date(c("2020-03-23", "2020-11-05")),
+                       end   = sircovid_date(c("2020-05-11", paper_date)))
+ld_dates$mid <-
+  as.character(sircovid_date_as_date((ld_dates$start + ld_dates$end) / 2))
 
 pop <- sapply(names(agg_samples),
               function(x) sum(sircovid:::sircovid_population(x)))
@@ -37,7 +44,7 @@ pop <- sapply(names(agg_samples),
 ```{r}
 infected <- extract_value("infections", paper_date, agg_samples$england)
 admitted <- extract_value("admitted", paper_date, agg_samples$england) +
-  extract_value("new", paper_date, agg_samples$england)
+  extract_value("diagnoses", paper_date, agg_samples$england)
 
 round(mean_ci(admitted / infected) * 100, 2)
 ```
@@ -78,13 +85,13 @@ round(mean_ci(infected / pop["england"]) * 100, 2)
 Deaths by region from before RTM time series starts
 
 ```{r}
-early_deaths <- c("london" = 40,
-                  "east_of_england" = 9,
-                  "midlands" = 21,
-                  "north_east_and_yorkshire" = 4,
+early_deaths <- c("london" = 37,
+                  "east_of_england" = 12,
+                  "midlands" = 20,
+                  "north_east_and_yorkshire" = 3,
                   "north_west" = 11,
-                  "south_east" = 16,
-                  "south_west" = 4)
+                  "south_east" = 13,
+                  "south_west" = 3)
 ```
 
 
@@ -159,14 +166,14 @@ round(chr_pop / pop * 1e5, 0)
 Proportion of first wave deaths that occurred in care homes (England)
 
 ```{r}
-prop_chr_deaths <- extract_value("deaths_comm", end_first_wave,
+prop_chr_deaths <- extract_value("deaths_carehomes", end_first_wave,
                                  agg_samples$england) /
   extract_value("deaths", end_first_wave, agg_samples$england)
 
 paste0(round(mean_ci(prop_chr_deaths), 3) * 100, "%")
 
 i <- as.Date(agg_data$england$full$date_string) <= as.Date(end_first_wave)
-sum(agg_data$england$full$deaths_comm[i], na.rm = TRUE) /
+sum(agg_data$england$full$deaths_carehomes[i], na.rm = TRUE) /
   sum(agg_data$england$full$deaths[i], na.rm = TRUE)
 ```
 
@@ -182,7 +189,7 @@ calc_peak <- function(sample, what, end_date) {
 }
 
 peak_diff <- function(sample, end_date) {
-  chw <- calc_peak(sample, "deaths_comm_inc", end_first_wave)
+  chw <- calc_peak(sample, "deaths_carehomes_inc", end_first_wave)
   hosp <- calc_peak(sample, "deaths_hosp_inc", end_first_wave)
   mean_ci(chw - hosp)
 }
@@ -247,16 +254,19 @@ peak_risk <- sapply(agg_samples, peak_risk_date, end_first_wave)
 t(peak_risk)
 ```
 
+
 $R_t ^ {eff}$ in first lockdown compared to second
 
 ```{r}
-lapply(ld_dates, extract_Rt_est, agg_Rt_outputs$england, "eff_Rt_general")
+ld_dates$mid
+
+lapply(ld_dates$mid, extract_Rt_est, agg_Rt_outputs$england, "eff_Rt_general")
 ```
 
 $R_t$ in second lockdown
 
 ```{r}
-lapply(ld_dates, extract_Rt_est, agg_Rt_outputs$england, "Rt_general")
+lapply(ld_dates$mid, extract_Rt_est, agg_Rt_outputs$england, "Rt_general")
 ```
 
 ## 2. Severity and hopitalisation
@@ -285,7 +295,8 @@ reduction_in_severity <- function(ifr, date1, date2) {
   mean_ci(ret)
 }
 
-round(t(sapply(ifr_t, reduction_in_severity, start_data, end_first_wave)) * 100, 1)
+round(t(sapply(ifr_t, reduction_in_severity,
+               start_data, end_first_wave)) * 100, 1)
 ```
 
 First wave IFR
@@ -367,13 +378,13 @@ Time to seropositivity (days)
 
 ```{r}
 pars <- samples$london$predict$transform(samples$london$pars[1, ])
-(1 / pars$gamma_R_pre_1 + 1/ pars$gamma_R_pre_2) / 2
+(1 / pars$gamma_sero_pre_1 + 1 / pars$gamma_sero_pre_2) / 2
 ```
 
 Probability of seroconversion, sensitivity / specificity of serological tests
 
 ```{r}
-pars$p_seroconversion[1]
+pars$p_sero_pos[1]
 pars$sero_sensitivity
 pars$sero_specificity
 ```
@@ -438,28 +449,29 @@ extract_params(samples, c(sprintf("beta%s", seq_len(12)), "eps"), 2)
 Care home parameters
 
 ```{r}
-extract_params(samples, what = sprintf("C_%s", 1:2), digits =7)
+extract_params(samples, what = c("m_CHR", "m_CHW"), digits = 7)
 ```
 
 Transistion probabilities
 
 ```{r}
-v <- c("hosp_sympt", "death_comm", "ICU_hosp", "death_hosp_D", "death_ICU",
-       "death_stepdown")
+v <- c("H", "H_CHR", "G_D", "G_D_CHR", "ICU", "H_D", "ICU_D",
+       "W_D")
 extract_params(samples, what = sprintf("p_%s", v), digits = 2)
 ```
 
 mus
 
 ```{r}
-extract_params(samples, what = sprintf("mu_%s", c("death_hosp", "ICU_hosp")),
+extract_params(samples, what = sprintf("mu_%s", c("D", "ICU")),
                digits = 2)
 ```
 
 The rest
 
 ```{r}
-extract_params(samples, what = c("prop_noncovid_sympt", "rho_pillar2_tests"),
+extract_params(samples, what = c("p_NC", "rho_pillar2_tests",
+                                 "alpha_D", "alpha_H"),
                digits = 4)
 ```
 
@@ -471,8 +483,16 @@ format_ifr <- function(what) {
   tmp <- t(sapply(sprintf("%s_%s", what, groups), extract_severity,
            ifr = ifr_t$england, end_date = paper_date))
   tmp <- round(tmp, 3)
-  paste0( tmp[, "mean"], "% (", tmp[, "2.5%"], "%, ", tmp[, "97.5%"], "%)")
+  paste0(tmp[, "mean"], "% (", tmp[, "2.5%"], "%, ", tmp[, "97.5%"], "%)")
 }
 
 cbind(IHR = format_ifr("IHR"), IFR = format_ifr("IFR"))
+```
+
+EpiEstim section:
+
+```{r}
+mean_days_infection_to_death
+mean_gt_distr
+std_gt_distr
 ```

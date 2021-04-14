@@ -6,77 +6,6 @@ switch_levels <- function(x) {
 }
 
 
-calc_ifr_t <- function(sample) {
-  step <- sample$trajectories$step
-
-  ifr_t <- function(i) {
-    p <- sample$predict$transform(sample$pars[i, ])
-    p_sympt <- p$p_sympt
-
-    expand <- function(x) {
-      sircovid::sircovid_parameters_beta_expand(step, x)
-    }
-
-    p_hosp_sympt <- outer(p$psi_hosp_sympt, expand(p$p_hosp_sympt_step))
-    p_ICU_hosp <- outer(p$psi_ICU_hosp, expand(p$p_ICU_hosp_step))
-    p_death_ICU <- outer(p$psi_death_ICU, expand(p$p_death_ICU_step))
-    p_death_hosp_D <- outer(p$psi_death_hosp_D, expand(p$p_death_hosp_D_step))
-    p_death_comm <- outer(p$psi_death_comm, expand(p$p_death_comm_step))
-    p_death_stepdown <- outer(p$psi_death_stepdown,
-                              expand(p$p_death_stepdown_step))
-
-    IHR_by_age <- p_sympt * p_hosp_sympt * (1 - p_death_comm) * 100
-    IFR_by_age <- p_sympt * p_hosp_sympt * p_death_comm * 100 +
-      IHR_by_age * (p_ICU_hosp * (p_death_ICU + (1 - p_death_ICU) *
-                                  p_death_stepdown) +
-                    (1 - p_ICU_hosp) * p_death_hosp_D)
-
-    pop <- p$N_tot
-    nms <- names(sample$predict$index)
-    index_S <- grep("^S_", nms)
-
-    j <- length(which(!sample$trajectories$predicted))
-    S <- sample$trajectories$state[index_S, i, j]
-    S_mat <- matrix(S, nrow = p$n_groups)
-    S <- rowSums(S_mat) # sum across all vaccination states
-    infected <- unname(pop - S)
-    gen_pop <- c(pop[1:p$n_age_groups], 0, 0)
-    gen_pop_infected <- c(infected[1:p$n_age_groups], 0, 0)
-
-    IFR_age <- split(IFR_by_age, seq_len(nrow(IFR_by_age)))
-    names(IFR_age) <- gsub("S", "IFR", nms[index_S][seq_len(p$n_groups)])
-    IHR_age <- split(IHR_by_age, seq_len(nrow(IHR_by_age)))
-    names(IHR_age) <- gsub("S", "IHR", nms[index_S][seq_len(p$n_groups)])
-
-    ret <-
-      list(IFR_pop_all = apply(IFR_by_age, 2, weighted.mean, pop),
-           IFR_pop_gen = apply(IFR_by_age, 2, weighted.mean, gen_pop),
-           IFR_AR_all  = apply(IFR_by_age, 2, weighted.mean, infected),
-           IFR_AR_gen  = apply(IFR_by_age, 2, weighted.mean, gen_pop_infected),
-           IHR_pop_all = apply(IHR_by_age, 2, weighted.mean, pop),
-           IHR_pop_gen = apply(IHR_by_age, 2, weighted.mean, gen_pop),
-           IHR_AR_all  = apply(IHR_by_age, 2, weighted.mean, infected),
-           IHR_AR_gen  = apply(IHR_by_age, 2, weighted.mean, gen_pop_infected))
-
-    c(ret, IFR_age, IHR_age)
-  }
-
-  res <- lapply(seq_len(dim(sample$pars)[1]), ifr_t)
-
-  ## These are stored in a list-of-lists and we convert to a
-  ## list-of-matrices here
-  collect <- function(nm) {
-    matrix(unlist(lapply(res, "[[", nm)), length(step), length(res))
-  }
-
-  nms <- names(res[[1]])
-  ret <- lapply(nms, collect)
-  names(ret) <- nms
-  ret$date <- sample$trajectories$date
-
-  ret
-}
-
 calc_cum_inf_age <- function(sample, data, a, date = NULL) {
 
   if (is.null(date)) {
@@ -89,7 +18,8 @@ calc_cum_inf_age <- function(sample, data, a, date = NULL) {
   n_groups <- p$n_groups
 
   St <- apply(sample$trajectories$state[index_S[seq(a, length(index_S),
-                                              n_groups)], , , drop = FALSE],
+                                                    n_groups)], , ,
+                                        drop = FALSE],
               c(2, 3), sum)
   cum_inf <- (S0 - St) / S0
   sircovid_date <- as.character(sircovid::sircovid_date(date))
@@ -150,10 +80,11 @@ aggregate_data <- function(data, region_names, type = "full") {
 
   ret <- Reduce("+", lapply(d, function(x) x[seq_len(dim_t), data_names]))
 
+  death_nms <- c("deaths_hosp", "deaths_carehomes", "deaths_comm")
   ret$deaths <- pmax(ret$deaths,
-                     ret$deaths_hosp + ret$deaths_comm,
+                     rowSums(ret[, death_nms], na.rm = TRUE),
                      na.rm = TRUE)
-  ret[-seq_len(nrow(ret) - 5), ] <- NA
+
   data.frame(ret, x[, date_names])
 }
 
@@ -172,36 +103,13 @@ extract_admissions_by_age <- function(sample) {
        mean_admissions_t = mean_admissions)
 }
 
-prepare_model_admissions <- function(model, dashboard){
-  model <- mean_admissions
-
-  age <- c("0 to 5", "6 to 17", "18 to 64", "65 to 84", "85+")
-
-  ## Model outputs only for people in the general population
-  model <- data.frame(model[1:17, ] / 100)
-
-  ## Aggregate into 5 age brackets comparable with Dashboard data
-  row1 <- model[1, ]
-  row2 <- colSums(model[2:4, ])
-  row3 <- colSums(model[5:13, ])
-  row4 <- colSums(model[14:16, ])
-  row5 <- model[17, ]
-  model <- rbind(row1, row2, row3, row4, row5)
-  model$age <- factor(age, levels = age)
-
-  model <- data.frame(melt(model, id.vars = "age"))
-  colnames(model) <- c("age", "region", "admissions_prop")
-  model$source <- as.factor("Model")
-
-  ## Prepare the dashboard data
-  dashboard <- dashboard %>% dplyr::select(age, region, admissions_prop)
-  dashboard$source <- as.factor("PHE Dashboard")
-
-  out <- rbind(model, dashboard)
-}
-
 prepare_model_data <- function(admissions, admissions_data) {
   model <- admissions$england$mean_prop_total_admissions
+
+  ## Add CHW and CHR admissions into age groups based on their age weightings
+  model[6:13] <- model[6:13] + model[18] / 8
+  model[14:17] <- model[14:17] + c(0.05, 0.05, 0.15, 0.75) * model[19]
+
   model <- data.frame(model[1:17] / 100)
   age <- c("0 to 4", "5 to 9", "10 to 14", "15 to 19", "20 to 24", "25 to 29",
            "30 to 34", "35 to 39", "40 to 44", "45 to 49", "50 to 54",
@@ -211,5 +119,49 @@ prepare_model_data <- function(admissions, admissions_data) {
 
   model <- melt(model)
   model$variable <- "Model"
-  out <- rbind(model, admissions_data)
+
+  rbind(model, admissions_data)
+}
+
+calculate_mean_time_from_infection_to_death <- function(p, death_hosp_only) {
+
+  mean_discr_gamma <- function(k, gamma, dt) {
+    k * dt / (1 - exp(-gamma * dt))
+  }
+  mean_time_to_hosp <- mean_discr_gamma(p$k_E, p$gamma_E, p$dt) +
+    mean_discr_gamma(p$k_P, p$gamma_P, p$dt) +
+    mean_discr_gamma(p$k_C_1, p$gamma_C_1, p$dt) +
+    mean_discr_gamma(p$k_C_2, p$gamma_C_2, p$dt)
+
+  mean_G_D <- mean_discr_gamma(p$k_G_D, p$gamma_G_D, p$dt)
+  p_G_D <- p$p_G_D
+
+  mean_H_D <- mean_discr_gamma(p$k_H_D, p$gamma_H_D, p$dt)
+  p_H_D <- (1 - p$p_G_D) * (1 - p$p_ICU) * p$p_H_D
+
+  mean_W_D <- mean_discr_gamma(p$k_ICU_pre, p$gamma_ICU_pre, p$dt) +
+    mean_discr_gamma(p$k_ICU_W_D, p$gamma_ICU_W_D, p$dt) +
+    mean_discr_gamma(p$k_W_D, p$gamma_W_D, p$dt)
+  p_W_D <- (1 - p$p_G_D) * p$p_ICU * (1 - p$p_ICU_D) * p$p_W_D
+
+  mean_ICU_D <- mean_discr_gamma(p$k_ICU_pre, p$gamma_ICU_pre, p$dt) +
+    mean_discr_gamma(p$k_ICU_D, p$gamma_ICU_D, p$dt)
+  p_ICU_D <- (1 - p$p_G_D) * p$p_ICU * p$p_ICU_D
+
+  if (death_hosp_only) {
+    mean_days_infection_to_death <- mean_time_to_hosp +
+      (mean_H_D * p_H_D +
+         mean_W_D * p_W_D +
+         mean_ICU_D * p_ICU_D) / (p_H_D + p_W_D + p_ICU_D)
+  }else {
+    mean_days_infection_to_death <- mean_time_to_hosp +
+      (mean_G_D * p_G_D +
+         mean_H_D * p_H_D +
+         mean_W_D * p_W_D +
+         mean_ICU_D * p_ICU_D) / (p_G_D + p_H_D + p_W_D + p_ICU_D)
+  }
+
+  ## Issues: p_ICU, p_H_D, p_ICU_D, p_W_D vary over time
+
+  mean_days_infection_to_death
 }

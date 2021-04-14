@@ -1,4 +1,5 @@
 transform_beta_date <- function(sample, i, days_earlier, i_betas) {
+
   p <- sample$pars[i, ]
   ret <- sample$predict$transform(p)
 
@@ -43,9 +44,11 @@ run_counterfactual1 <- function(i, sample, transform) {
   model$reset(p_i, initial$step)
   model$set_state(initial$state, initial$step)
   index <- c(date = 1, sample$predict$filter$index(model$info())$state)
+  model$set_index(index)
   step <- c(initial$step, sample$predict$filter$data$step_end)
-  traj <- dust::dust_iterate(model, step, index)
-  traj[!grepl("^(S|cum_admit)_", rownames(traj)), , ]
+  traj <- model$simulate(step)
+  traj[!grepl("^(S|cum_admit|prob_strain|I_weighted|D_hosp|cum_n_vaccinated)_",
+              rownames(traj)), , ]
 }
 
 
